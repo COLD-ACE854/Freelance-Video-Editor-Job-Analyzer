@@ -1,0 +1,2553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Video Job Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================= DESIGN TOKENS ============================= */
+  :root {
+    --bg: #fcfcfa;
+    --surface: #ffffff;
+    --surface-2: #f4f3ef;
+    --border: #e4e2dd;
+    --ink: #15171c;
+    --ink-muted: #6b6f76;
+    --accent: #2a4fe0;
+    --accent-strong: #1b3bc4;
+    --accent-ink: #ffffff;
+    --accent-soft: #ebeffd;
+
+    --track-editing: #2a4fe0;
+    --track-revisions: #7c5cff;
+    --track-communication: #17b0a7;
+    --track-hidden: #ff8a3d;
+
+    --risk-low: #1c8a5e;
+    --risk-low-bg: #e7f5ee;
+    --risk-medium: #a86a0a;
+    --risk-medium-bg: #fbf1dd;
+    --risk-high: #c7402f;
+    --risk-high-bg: #fbeae7;
+
+    --radius-sm: 8px;
+    --radius-md: 14px;
+    --radius-lg: 22px;
+
+    --font-display: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101218;
+      --surface: #171a21;
+      --surface-2: #1d212b;
+      --border: #2b2f3a;
+      --ink: #f1f2f4;
+      --ink-muted: #9aa0ac;
+      --accent: #7691ff;
+      --accent-strong: #94a9ff;
+      --accent-ink: #0f1115;
+      --accent-soft: #202748;
+      --risk-low: #43d38f;
+      --risk-low-bg: #103427;
+      --risk-medium: #f0b429;
+      --risk-medium-bg: #372a10;
+      --risk-high: #ff7a68;
+      --risk-high-bg: #3a1a15;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101218;
+    --surface: #171a21;
+    --surface-2: #1d212b;
+    --border: #2b2f3a;
+    --ink: #f1f2f4;
+    --ink-muted: #9aa0ac;
+    --accent: #7691ff;
+    --accent-strong: #94a9ff;
+    --accent-ink: #0f1115;
+    --accent-soft: #202748;
+    --risk-low: #43d38f;
+    --risk-low-bg: #103427;
+    --risk-medium: #f0b429;
+    --risk-medium-bg: #372a10;
+    --risk-high: #ff7a68;
+    --risk-high-bg: #3a1a15;
+  }
+
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.15; margin: 0; }
+  p { margin: 0; }
+  ul, ol { margin: 0; padding: 0; list-style: none; }
+  button { font-family: var(--font-body); cursor: pointer; }
+  input, select, textarea { font-family: var(--font-body); font-size: 15px; color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+
+  .shell { max-width: 880px; margin: 0 auto; padding: 28px 20px 80px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* ---------- topbar ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 880px; margin: 0 auto; padding: 18px 20px 0;
+  }
+  .wordmark { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+  .wordmark .dot { color: var(--accent); }
+  .tag {
+    font-size: 12px; color: var(--ink-muted); border: 1px solid var(--border);
+    padding: 3px 9px; border-radius: 100px;
+  }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: var(--radius-sm); border: 1px solid transparent;
+    padding: 11px 20px; font-size: 15px; font-weight: 500;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: var(--accent-strong); }
+  .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-ghost { background: transparent; color: var(--ink-muted); border-color: transparent; }
+  .btn-ghost:hover { color: var(--ink); }
+  .btn-lg { padding: 14px 26px; font-size: 16px; width: 100%; }
+  .link-btn {
+    background: none; border: none; padding: 0; color: var(--accent);
+    font-size: 14px; font-weight: 500; text-decoration: underline; text-underline-offset: 3px;
+  }
+  .back-link {
+    background: none; border: none; color: var(--ink-muted); font-size: 14px;
+    padding: 6px 0; margin-bottom: 18px; display: inline-block;
+  }
+  .back-link:hover { color: var(--ink); }
+
+  /* ---------- hero ---------- */
+  .hero {
+    display: grid; grid-template-columns: 1.1fr 1fr; gap: 44px; align-items: center;
+    padding: 44px 0 56px;
+  }
+  .hero h1 {
+    font-size: clamp(30px, 4.6vw, 46px); letter-spacing: -0.01em; max-width: 15ch;
+  }
+  .hero-sub { margin-top: 18px; font-size: 17px; color: var(--ink-muted); max-width: 44ch; }
+  .hero-actions { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .timeline-demo {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 22px;
+  }
+  .timeline-demo-label { font-size: 13px; color: var(--ink-muted); margin-bottom: 14px; }
+  .timeline-track {
+    display: flex; width: 100%; height: 40px; border-radius: 10px; overflow: hidden;
+    background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .timeline-track.big { height: 52px; }
+  .seg {
+    width: 0%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: #fff; white-space: nowrap; overflow: hidden;
+    transition: width 1.1s cubic-bezier(.2,.7,.2,1);
+  }
+  .seg-editing { background: var(--track-editing); }
+  .seg-revisions { background: var(--track-revisions); }
+  .seg-communication { background: var(--track-communication); }
+  .seg-hidden { background: var(--track-hidden); }
+  .timeline-demo-caption { margin-top: 12px; font-family: var(--font-mono); font-size: 13px; color: var(--ink-muted); }
+  .timeline-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font-size: 13px; color: var(--ink-muted); }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+
+  /* ---------- how it works ---------- */
+  .how-it-works { padding: 10px 0 50px; border-top: 1px solid var(--border); }
+  .how-it-works h2 { font-size: 22px; margin-top: 46px; margin-bottom: 26px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; }
+  .steps li { display: flex; flex-direction: column; gap: 8px; }
+  .step-num {
+    font-family: var(--font-mono); font-size: 13px; color: var(--accent);
+    border: 1px solid var(--border); width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 4px;
+  }
+  .steps h3 { font-size: 16px; }
+  .steps p { color: var(--ink-muted); font-size: 14.5px; }
+
+  /* ---------- panels / forms ---------- */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+    padding: 24px; margin-bottom: 18px;
+  }
+  .panel h2 { font-size: 18px; margin-bottom: 16px; }
+  .input-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 18px; align-items: start; }
+  label { display: block; font-size: 13.5px; font-weight: 500; color: var(--ink); margin-bottom: 7px; }
+  .field-help { font-size: 12.5px; color: var(--ink-muted); margin-top: 5px; }
+  textarea, input[type="number"], input[type="text"], select {
+    width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 12px; background: var(--bg); color: var(--ink);
+  }
+  textarea { resize: vertical; min-height: 130px; line-height: 1.5; }
+  textarea:focus, input:focus, select:focus { border-color: var(--accent); }
+  .panel-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .sample-links { font-size: 13px; color: var(--ink-muted); }
+  .sample-links button { background: none; border: none; color: var(--accent); font-size: 13px; text-decoration: underline; padding: 0; }
+  .extract-summary {
+    margin-top: 14px; padding: 12px 14px; background: var(--accent-soft); border-radius: var(--radius-sm);
+    font-size: 13.5px; color: var(--ink);
+  }
+  .rate-row { display: flex; gap: 8px; align-items: center; }
+  .rate-row select { flex: 0 0 84px; }
+  .rate-row input { flex: 1; }
+  .rate-row span { font-size: 14px; color: var(--ink-muted); white-space: nowrap; }
+
+  .field-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .field { display: flex; flex-direction: column; }
+  .deadline-pair { display: flex; gap: 8px; }
+  .deadline-pair select { flex: 0 0 90px; }
+
+  .toggle-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .toggle-chip {
+    display: flex; align-items: center; gap: 10px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 11px 13px; font-size: 14px; cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .toggle-chip input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .toggle-chip.checked { border-color: var(--accent); background: var(--accent-soft); }
+
+  /* ---------- results: decision hero ---------- */
+  .decision-hero {
+    border-radius: var(--radius-lg); padding: 30px 28px; margin-bottom: 18px;
+    border: 1px solid var(--border);
+  }
+  .decision-hero.level-low { background: var(--risk-low-bg); border-color: color-mix(in srgb, var(--risk-low) 35%, var(--border)); }
+  .decision-hero.level-medium { background: var(--risk-medium-bg); border-color: color-mix(in srgb, var(--risk-medium) 35%, var(--border)); }
+  .decision-hero.level-high { background: var(--risk-high-bg); border-color: color-mix(in srgb, var(--risk-high) 35%, var(--border)); }
+  .decision-eyebrow { font-size: 13px; color: var(--ink-muted); margin-bottom: 6px; }
+  .decision-badge { font-family: var(--font-display); font-size: clamp(28px, 5vw, 38px); font-weight: 700; }
+  .level-low .decision-badge { color: var(--risk-low); }
+  .level-medium .decision-badge { color: var(--risk-medium); }
+  .level-high .decision-badge { color: var(--risk-high); }
+  .decision-reason { margin-top: 12px; font-size: 15.5px; max-width: 62ch; color: var(--ink); }
+
+  /* ---------- workload panel ---------- */
+  .workload-list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .workload-row { display: flex; align-items: center; justify-content: space-between; font-size: 14.5px; padding: 4px 0; }
+  .workload-row .wl-label { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+  .workload-row .wl-value { font-family: var(--font-mono); font-weight: 600; }
+  .workload-row.total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 12px; font-weight: 600; }
+  .why-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--ink-muted); padding-left: 4px; }
+  .why-list li { padding-left: 14px; position: relative; }
+  .why-list li::before { content: '—'; position: absolute; left: 0; color: var(--border); }
+
+  /* ---------- financial cards ---------- */
+  .financial-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+  .fin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 18px; }
+  .fin-card .fin-label { font-size: 12.5px; color: var(--ink-muted); margin-bottom: 8px; }
+  .fin-card .fin-value { font-family: var(--font-mono); font-size: 21px; font-weight: 600; }
+  .fin-card.highlight { border-color: var(--accent); }
+
+  /* ---------- ask list ---------- */
+  .ask-list { display: flex; flex-direction: column; gap: 9px; }
+  .ask-list li { display: flex; gap: 10px; font-size: 14.5px; align-items: flex-start; }
+  .ask-list li::before { content: '•'; color: var(--accent); font-weight: 700; line-height: 1.5; }
+
+  /* ---------- risk grid ---------- */
+  .risk-grid { display: flex; flex-direction: column; gap: 10px; }
+  .risk-row { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 13px 15px; }
+  .risk-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .risk-name { font-size: 14.5px; font-weight: 500; }
+  .risk-badge { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 100px; }
+  .risk-badge.low { color: var(--risk-low); background: var(--risk-low-bg); }
+  .risk-badge.medium { color: var(--risk-medium); background: var(--risk-medium-bg); }
+  .risk-badge.high { color: var(--risk-high); background: var(--risk-high-bg); }
+  .risk-explain { margin-top: 6px; font-size: 13.5px; color: var(--ink-muted); }
+
+  /* ---------- negotiation / message ---------- */
+  .negotiate-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 4px; }
+  .negotiate-list li { display: flex; gap: 10px; font-size: 14.5px; }
+  .negotiate-list li::before { content: '→'; color: var(--accent); }
+  #client-message { min-height: 170px; font-size: 14.5px; line-height: 1.55; margin-bottom: 12px; }
+  .copy-row { display: flex; align-items: center; gap: 12px; }
+  .copy-note { font-size: 13px; color: var(--risk-low); opacity: 0; transition: opacity 0.2s ease; }
+  .copy-note.show { opacity: 1; }
+
+  .disclaimer { font-size: 12.5px; color: var(--ink-muted); margin: 20px 0 0; max-width: 68ch; }
+  .results-footer { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+
+  .restore-banner {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    background: var(--accent-soft); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 12px 16px; margin-bottom: 18px; font-size: 13.5px; flex-wrap: wrap;
+  }
+  .restore-banner .actions { display: flex; gap: 14px; }
+  .restore-banner button { background: none; border: none; color: var(--accent); font-weight: 500; padding: 0; font-size: 13.5px; }
+
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; padding-top: 20px; }
+    .steps { grid-template-columns: 1fr; gap: 22px; }
+    .input-grid { grid-template-columns: 1fr; }
+    .field-grid { grid-template-columns: 1fr 1fr; }
+    .toggle-grid { grid-template-columns: 1fr; }
+    .financial-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 460px) {
+    .field-grid { grid-template-columns: 1fr; }
+    .financial-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- verdict score, reasons, confidence ---------- */
+  .decision-headline { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .decision-score {
+    font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--ink-muted);
+    border: 1px solid var(--border); border-radius: 100px; padding: 2px 12px; background: var(--surface);
+  }
+  .verdict-why { margin-top: 18px; }
+  .verdict-why h3 { font-size: 14px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 10px; }
+  .reason-list { display: flex; flex-direction: column; gap: 8px; counter-reset: reason; }
+  .reason-list li {
+    font-size: 14.5px; padding-left: 26px; position: relative; max-width: 68ch;
+  }
+  .reason-list li::before {
+    counter-increment: reason; content: counter(reason);
+    position: absolute; left: 0; top: 1px;
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--border); color: var(--ink-muted);
+  }
+  .reason-list li.reason-positive::before { color: var(--risk-low); border-color: var(--risk-low); }
+  .reason-list li.reason-blocker::before, .reason-list li.reason-cap::before { color: var(--risk-high); border-color: var(--risk-high); }
+  .cap-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .cap-list li {
+    font-size: 13.5px; color: var(--risk-high); background: var(--risk-high-bg);
+    border-radius: var(--radius-sm); padding: 9px 12px; max-width: 68ch;
+  }
+  .confidence-row { margin-top: 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .conf-note { font-size: 13px; color: var(--ink-muted); }
+  .conf-badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 100px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--ink-muted); white-space: nowrap;
+  }
+  .conf-badge.conf-high { color: var(--risk-low); background: var(--risk-low-bg); border-color: transparent; }
+  .conf-badge.conf-medium { color: var(--risk-medium); background: var(--risk-medium-bg); border-color: transparent; }
+  .conf-badge.conf-low { color: var(--risk-high); background: var(--risk-high-bg); border-color: transparent; }
+
+  /* ---------- score breakdown ---------- */
+  .panel-intro { font-size: 13.5px; color: var(--ink-muted); margin-bottom: 16px; margin-top: -8px; }
+  .score-breakdown { display: flex; flex-direction: column; gap: 14px; }
+  .score-row-top { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; margin-bottom: 6px; gap: 10px; }
+  .score-weight { font-size: 12px; color: var(--ink-muted); }
+  .score-value { font-family: var(--font-mono); font-weight: 600; }
+  .score-bar { height: 8px; border-radius: 100px; background: var(--surface-2); overflow: hidden; }
+  .score-bar-fill { height: 100%; border-radius: 100px; transition: width 0.8s cubic-bezier(.2,.7,.2,1); }
+  .score-bar-fill.good { background: var(--risk-low); }
+  .score-bar-fill.mid { background: var(--risk-medium); }
+  .score-bar-fill.bad { background: var(--risk-high); }
+  .risk-axis { margin-top: 6px; font-size: 12px; color: var(--ink-muted); font-family: var(--font-mono); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wordmark">Job Analyzer<span class="dot">.</span></div>
+  <div class="tag">for video editors</div>
+</div>
+
+<div class="shell">
+
+  <!-- ============================= HOME VIEW ============================= -->
+  <section class="view active" id="view-home">
+    <div class="hero">
+      <div class="hero-text">
+        <h1>Know what a video editing job is really worth.</h1>
+        <p class="hero-sub">Paste a client's job description and get a workload estimate, an effective hourly rate, a risk breakdown, and a negotiation strategy — before you say yes.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-cta" id="btn-start">Analyze a job</button>
+          <button class="btn btn-ghost" id="btn-how">See how it works</button>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="timeline-demo">
+          <div class="timeline-demo-label">Where a "$300, 48-hour" job actually goes</div>
+          <div class="timeline-track" id="demo-track">
+            <div class="seg seg-editing" data-target="64" id="demo-editing">Editing</div>
+            <div class="seg seg-revisions" data-target="11" id="demo-revisions"></div>
+            <div class="seg seg-communication" data-target="7" id="demo-communication"></div>
+            <div class="seg seg-hidden" data-target="18" id="demo-hidden">Hidden</div>
+          </div>
+          <div class="timeline-demo-caption">~14 hrs of real work → about $21/hr effective rate</div>
+          <div class="timeline-legend">
+            <span class="legend-item"><span class="legend-dot" style="background:var(--track-editing)"></span>Editing</span>
+            <span class="legend-item"><span class="legend-dot" style="background:var(--track-revisions)"></span>Revisions</span>
+            <span class="legend-item"><span class="legend-dot" style="background:var(--track-communication)"></span>Comms</span>
+            <span class="legend-item"><span class="legend-dot" style="background:var(--track-hidden)"></span>Hidden work</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section class="how-it-works" id="how-it-works">
+      <h2>How it works</h2>
+      <ol class="steps">
+        <li><span class="step-num">1</span><h3>Paste the job</h3><p>Drop in the client's message or job post, or fill in the details yourself.</p></li>
+        <li><span class="step-num">2</span><h3>Analyze the workload</h3><p>See editing time, revisions, communication, and the hidden work freelancers usually forget to price.</p></li>
+        <li><span class="step-num">3</span><h3>Decide with confidence</h3><p>Get your effective hourly rate, a minimum price, the real risks, and exactly what to negotiate.</p></li>
+      </ol>
+    </section>
+  </section>
+
+  <!-- ============================= INPUT VIEW ============================= -->
+  <section class="view" id="view-input">
+    <button class="back-link" data-nav="home">← Back</button>
+    <h1 style="font-size:26px; margin-bottom:20px;">Tell us about the job</h1>
+
+    <div class="input-grid">
+      <div class="panel">
+        <label for="job-desc">Client job description</label>
+        <textarea id="job-desc" placeholder="Paste the client's message or job post here — e.g. &quot;Looking for an editor for a 10-minute YouTube video. Raw footage is about 3 hours...&quot;"></textarea>
+        <div class="panel-actions">
+          <button class="btn btn-secondary" id="btn-extract">Extract details</button>
+          <div class="sample-links">
+            Try a sample:
+            <button type="button" data-sample="1">10-min YouTube edit</button> ·
+            <button type="button" data-sample="2">Documentary project</button> ·
+            <button type="button" data-sample="3">Red-flag job</button>
+          </div>
+        </div>
+        <div class="extract-summary" id="extract-summary" hidden></div>
+      </div>
+
+      <div class="panel">
+        <label for="rate-input">Your target hourly rate</label>
+        <div class="rate-row">
+          <select id="currency-select" aria-label="Currency">
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+            <option value="UGX">UGX (USh)</option>
+            <option value="KES">KES (KSh)</option>
+            <option value="NGN">NGN (₦)</option>
+            <option value="ZAR">ZAR (R)</option>
+            <option value="CAD">CAD (CA$)</option>
+            <option value="AUD">AUD (A$)</option>
+            <option value="INR">INR (₹)</option>
+          </select>
+          <input type="number" id="rate-input" min="0" step="1" value="30" />
+          <span id="rate-suffix">/ hr</span>
+        </div>
+        <p class="field-help">Used to calculate your minimum price. This is your own rate — we never assume one for you.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Project basics</h2>
+      <div class="field-grid">
+        <div class="field">
+          <label for="price-input">Client's offer</label>
+          <input type="number" id="price-input" min="0" step="1" placeholder="300" />
+        </div>
+        <div class="field">
+          <label for="longform-count"># of long-form videos</label>
+          <input type="number" id="longform-count" min="0" step="1" value="1" />
+        </div>
+        <div class="field">
+          <label for="final-minutes">Final length (min, each)</label>
+          <input type="number" id="final-minutes" min="0" step="1" placeholder="10" />
+        </div>
+        <div class="field">
+          <label for="shorts-count"># of Shorts / Reels</label>
+          <input type="number" id="shorts-count" min="0" step="1" value="0" />
+        </div>
+        <div class="field">
+          <label for="footage-hours">Raw footage (hours)</label>
+          <input type="number" id="footage-hours" min="0" step="0.5" placeholder="3" />
+        </div>
+        <div class="field">
+          <label for="approvers-count"># of approvers</label>
+          <input type="number" id="approvers-count" min="1" step="1" value="1" />
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Timeline &amp; feedback</h2>
+      <div class="field-grid">
+        <div class="field">
+          <label for="deadline-value">Deadline</label>
+          <div class="deadline-pair">
+            <input type="number" id="deadline-value" min="0" step="1" placeholder="48" />
+            <select id="deadline-unit">
+              <option value="hours">hours</option>
+              <option value="days">days</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="revision-rounds">Revision rounds</label>
+          <input type="number" id="revision-rounds" min="0" step="0.5" value="1" />
+          <p class="field-help">If the client said "1–2 revisions," enter 2.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Requirements</h2>
+      <div class="toggle-grid" id="toggle-grid">
+        <label class="toggle-chip"><input type="checkbox" id="chk-captions" /> Captions</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-basic-graphics" /> Basic graphics / titles</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-advanced-graphics" /> Advanced motion graphics</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-color-grading" /> Color grading</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-sound-cleanup" /> Sound cleanup</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-broll" /> B-roll / stock footage</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-music" /> Music / sound effects</label>
+        <label class="toggle-chip"><input type="checkbox" id="chk-source-files" /> Project / source files required</label>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-lg" id="btn-analyze">Analyze this job</button>
+  </section>
+
+  <!-- ============================= RESULTS VIEW ============================= -->
+  <section class="view" id="view-results">
+    <button class="back-link" data-nav="input">← Edit details</button>
+
+    <section class="decision-hero" id="decision-hero">
+      <div class="decision-eyebrow">Our take</div>
+      <div class="decision-headline">
+        <div class="decision-badge" id="decision-badge">—</div>
+        <div class="decision-score" id="decision-score">—</div>
+      </div>
+      <p class="decision-reason" id="decision-reason"></p>
+
+      <div class="verdict-why">
+        <h3>Why this verdict</h3>
+        <ul class="reason-list" id="verdict-reasons"></ul>
+        <ul class="cap-list" id="score-caps" hidden></ul>
+      </div>
+
+      <div class="confidence-row">
+        <span class="conf-badge" id="decision-confidence">—</span>
+        <span class="conf-note" id="decision-confidence-note"></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Score breakdown</h2>
+      <p class="panel-intro">Four axes, weighted into one score. Higher is better on every bar.</p>
+      <div class="score-breakdown" id="score-breakdown"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Estimated workload</h2>
+      <div class="timeline-track big" id="results-track">
+        <div class="seg seg-editing" id="res-seg-editing"></div>
+        <div class="seg seg-revisions" id="res-seg-revisions"></div>
+        <div class="seg seg-communication" id="res-seg-communication"></div>
+        <div class="seg seg-hidden" id="res-seg-hidden"></div>
+      </div>
+      <div class="workload-list">
+        <div class="workload-row"><span class="wl-label"><span class="legend-dot" style="background:var(--track-editing)"></span>Editing</span><span class="wl-value" id="wl-editing">—</span></div>
+        <div class="workload-row"><span class="wl-label"><span class="legend-dot" style="background:var(--track-revisions)"></span>Revisions</span><span class="wl-value" id="wl-revisions">—</span></div>
+        <div class="workload-row"><span class="wl-label"><span class="legend-dot" style="background:var(--track-communication)"></span>Communication &amp; project management</span><span class="wl-value" id="wl-communication">—</span></div>
+        <div class="workload-row"><span class="wl-label"><span class="legend-dot" style="background:var(--track-hidden)"></span>Hidden work</span><span class="wl-value" id="wl-hidden">—</span></div>
+        <div class="workload-row total"><span class="wl-label">Total estimated time</span><span class="wl-value" id="wl-total">—</span></div>
+      </div>
+      <div style="margin-top:14px;">
+        <button class="link-btn" data-toggle="workload-why">How did we calculate this?</button>
+        <ul class="why-list" id="workload-why" hidden></ul>
+      </div>
+    </section>
+
+    <section class="financial-grid">
+      <div class="fin-card"><div class="fin-label">Client's offer</div><div class="fin-value" id="fin-offer">—</div></div>
+      <div class="fin-card"><div class="fin-label">Estimated hours</div><div class="fin-value" id="fin-hours">—</div></div>
+      <div class="fin-card"><div class="fin-label">Effective rate</div><div class="fin-value" id="fin-rate">—</div></div>
+      <div class="fin-card highlight"><div class="fin-label">Minimum price for you</div><div class="fin-value" id="fin-min">—</div></div>
+    </section>
+
+    <section class="panel">
+      <h2>What the client is actually asking for</h2>
+      <ul class="ask-list" id="ask-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Job risk</h2>
+      <div class="risk-grid" id="risk-grid"></div>
+    </section>
+
+    <section class="panel" id="negotiation-panel">
+      <h2>What to negotiate</h2>
+      <ul class="negotiate-list" id="negotiate-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Client message</h2>
+      <textarea id="client-message"></textarea>
+      <div class="copy-row">
+        <button class="btn btn-secondary" id="btn-copy">Copy message</button>
+        <span class="copy-note" id="copy-note">Copied</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <button class="link-btn" data-toggle="assumptions">Assumptions we used</button>
+      <ul class="why-list" id="assumptions" hidden></ul>
+    </section>
+
+    <p class="disclaimer">These are estimates based on the information you provided. Your actual workload may vary — use this as a starting point for your own judgment, not a guarantee.</p>
+
+    <div class="results-footer">
+      <button class="btn btn-ghost" data-nav="input">Adjust inputs</button>
+      <button class="btn btn-ghost" data-nav="home">Start a new job</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+/* ==ENGINE_START==
+   ==========================================================================
+   PURE CALCULATION ENGINE — no DOM access below this marker until ENGINE_END.
+   Everything here is deterministic and unit-testable (see tests/run-tests.js).
+   ========================================================================== */
+
+  /* ========================================================================
+     CALIBRATION — the single source of truth for every tunable number.
+     Sections:
+       workload   : hours estimation
+       capacity   : how much work fits in a calendar window
+       profitability / risk / complexity / pressure : scoring curves
+       scoring    : axis weights + verdict bands
+       gates      : ceilings that stop one good axis from hiding a fatal one
+       hardReject : automatic failures
+       confidence : extraction / input completeness
+       fx         : advisory-only reference rates
+     Confidence tags on each block: HIGH = structurally safe, MED = plausible
+     but unvalidated, LOW = guess, must be re-fit on real data. See the
+     calibration notes in CALIBRATION.notes.
+     ==================================================================== */
+  var CALIBRATION = {
+    version: '2.0.0',
+
+    /* ---- Workload model (hours) ---- [confidence: MED] ---- */
+    workload: {
+      editing: {
+        projectBaseHours: 0.5,
+        longFormBaseHours: 1.5,
+        perExtraMinute: 0.12,
+        footageReviewPerHour: 0.3,
+        shortFirstHours: 0.6,
+        shortAdditionalHours: 0.35,
+        // Learning-curve discount applied to long-form base when a job has
+        // many identical long-form videos (batch efficiency).
+        longFormBatchDiscount: 0.85,   // applied to videos 3+ in a batch
+        features: {
+          captions:         { longForm: 0.4,  short: 0.15, label: 'captions' },
+          basicGraphics:    { longForm: 0.9,  short: 0.2,  label: 'basic graphics / titles' },
+          advancedGraphics: { longForm: 1.8,  short: 0.6,  label: 'advanced motion graphics' },
+          colorGrading:     { longForm: 1.1,  short: 0.3,  label: 'color grading' },
+          soundCleanup:     { longForm: 0.75, short: 0.15, label: 'sound cleanup' },
+          broll:            { longForm: 0.75, short: 0.15, label: 'B-roll / stock footage sourcing' },
+          music:            { longForm: 0.35, short: 0.1,  label: 'music / sound effects' }
+        },
+        // Feature work scales with runtime: a 45-min doc needs more captioning
+        // than a 5-min video. Multiplier on long-form feature hours.
+        featureLengthScale: { perMinuteOver: 5, factorPerMinute: 0.035, maxFactor: 2.5 }
+      },
+      revisions: {
+        baseHoursPerRound: 0.4,
+        perExtraDeliverablePerRound: 0.2,
+        // Later rounds get more expensive, not cheaper: round 3+ tends to mean
+        // indecision, re-cuts and re-exports rather than small tweaks.
+        escalationPerRound: 0.15,        // +15% per round beyond the first
+        unlimitedAssumedRounds: 5        // what "unlimited revisions" costs in the model
+      },
+      communication: {
+        base: 0.4,
+        perApprover: 0.1,
+        perDeliverable: 0.05,
+        tightDeadlineBonus: 0.3,
+        tightDeadlineThresholdHours: 72,
+        perRevisionRound: 0.15           // each round has its own briefing/feedback cycle
+      },
+      hidden: {
+        footageOrganizingPerHour: 0.4,
+        exportBase: 0.3,
+        exportPerDeliverable: 0.15,
+        sourceFilesPrep: 1.0,
+        feedbackBuffer: 0.4,
+        // Re-exporting/re-uploading after each revision round.
+        reExportPerRound: 0.12
+      }
+    },
+
+    /* ---- Capacity ---- [confidence: LOW — biggest single lever] ---- */
+    capacity: {
+      assumedHoursPerDay: 5,        // realistic billable editing hours in a day
+      rushHoursPerDay: 8,           // what a sub-48h sprint can reach, unsustainably
+      rushThresholdHours: 48,
+      minCapacityHours: 1
+    },
+
+    /* ---- Profitability axis ---- [confidence: MED] ----
+       Maps effectiveRate / targetRate to a 0-100 score.
+       Anchors: 1.0 (exactly on target) = 75, because hitting your own rate
+       is a good outcome, not a perfect one — it leaves no margin for the
+       estimate being wrong. 2x target = 100. */
+    profitabilityCurve: [
+      [0.00, 0], [0.30, 8], [0.40, 15], [0.50, 22], [0.60, 32],
+      [0.75, 48], [0.85, 60], [0.95, 70], [1.00, 75], [1.15, 84],
+      [1.35, 92], [1.60, 97], [2.00, 100]
+    ],
+
+    /* ---- Risk axis ---- [confidence: LOW/MED] ----
+       Weighted severities, each 0-100 (higher = worse). Weights sum to 100.
+       Deadline pressure and technical complexity are deliberately NOT here:
+       they own their own axes, and counting them twice was a real flaw in v1. */
+    risk: {
+      weights: {
+        revisions: 30,
+        approval: 18,
+        deliverables: 17,
+        hiddenShare: 17,
+        scopeClarity: 18
+      },
+      curves: {
+        // rounds -> severity
+        revisions: [[0, 0], [1, 14], [1.5, 26], [2, 42], [3, 65], [4, 80], [5, 90], [8, 100]],
+        // approvers -> severity
+        approval: [[1, 5], [2, 35], [3, 60], [4, 78], [6, 95], [8, 100]],
+        // total deliverables -> severity
+        deliverables: [[1, 5], [2, 14], [3, 26], [4, 38], [6, 58], [8, 72], [12, 90], [20, 100]],
+        // (communication + hidden) / total hours -> severity
+        hiddenShare: [[0.10, 5], [0.18, 20], [0.25, 40], [0.33, 60], [0.45, 82], [0.60, 100]],
+        // unclear-scope points -> severity
+        scopeClarity: [[0, 5], [1, 25], [2, 45], [3, 65], [4, 82], [6, 100]]
+      },
+      // Displayed Low/Medium/High badge cut-offs for any 0-100 severity.
+      levelBands: { lowBelow: 30, mediumBelow: 62 }
+    },
+
+    /* ---- Complexity axis ---- [confidence: MED] ---- */
+    complexity: {
+      points: {
+        advancedGraphics: 30,
+        colorGrading: 16,
+        soundCleanup: 14,
+        broll: 8,
+        sourceFiles: 8,
+        captions: 3,
+        basicGraphics: 5,
+        music: 3
+      },
+      // Extra load from long/dense material.
+      footageRatioCurve: [[0, 0], [6, 5], [12, 12], [20, 20], [40, 30]],  // footage minutes per final minute
+      runtimeCurve: [[0, 0], [10, 4], [20, 10], [45, 18], [90, 25]]       // final minutes
+    },
+
+    /* ---- Workload pressure axis ---- [confidence: LOW] ---- */
+    pressure: {
+      deadlineRatioCurve: [[0, 0], [0.35, 8], [0.5, 18], [0.7, 35], [0.85, 50], [1.0, 66], [1.3, 86], [1.8, 100]],
+      absoluteHoursCurve: [[0, 0], [4, 8], [8, 18], [15, 35], [25, 55], [40, 78], [60, 100]],
+      deadlineWeight: 0.72,
+      absoluteWeight: 0.28,
+      unknownDeadlineSeverity: 28      // no deadline given = mild uncertainty, not "safe"
+    },
+
+    /* ---- Final score ---- [confidence: MED on structure, LOW on exact weights] ---- */
+    scoring: {
+      weights: {
+        profitability: 0.45,   // money is the primary question, but not the only one
+        risk: 0.25,            // what erodes the realised rate after you say yes
+        pressure: 0.18,        // schedule feasibility — usually the most negotiable
+        complexity: 0.12       // technical difficulty, partly already priced into hours
+      },
+      bands: [
+        { min: 90, verdict: 'Strong Accept', level: 'low' },
+        { min: 75, verdict: 'Accept',        level: 'low' },
+        { min: 55, verdict: 'Negotiate',     level: 'medium' },
+        { min: 35, verdict: 'High Risk',     level: 'high' },
+        { min: 0,  verdict: 'Reject',        level: 'high' }
+      ]
+    },
+
+    /* ---- Gates: score ceilings. A gate cannot raise a score, only cap it. ---- */
+    gates: [
+      { id: 'pay-severe',     cap: 44, label: 'Pay is far below your rate' },
+      { id: 'pay-below',      cap: 64, label: 'Pay is below your rate' },
+      { id: 'pay-marginal',   cap: 84, label: 'Pay only just covers your rate' },
+      { id: 'schedule-break', cap: 54, label: 'Schedule does not fit the work' },
+      { id: 'risk-stack',     cap: 64, label: 'Several risk factors stack up' },
+      { id: 'no-rate',        cap: 64, label: 'No target rate set' }
+    ],
+    gateThresholds: {
+      paySevereBelowRatio: 0.55,
+      payBelowRatio: 0.80,
+      payMarginalRatio: 1.00,
+      scheduleBreakDeadlineRatio: 1.45,
+      riskStackScore: 68
+    },
+
+    /* ---- Hard rejects: automatic failure regardless of other axes ---- */
+    hardReject: {
+      severeUnderpriceRatio: 0.40,       // effective rate under 40% of target
+      impossibleDeadlineRatio: 2.00,     // needs 2x the hours the window can hold
+      revisionAbuseRounds: 4,            // 4+ rounds ...
+      revisionAbuseRatio: 0.80,          // ... while paying under 80% of target
+      riskStackScore: 75,                // heavy risk stack ...
+      riskStackRatio: 0.90,              // ... on a job that does not pay well
+      unpaidWorkMinimumHours: 1          // any real scope with no money at all
+    },
+
+    /* ---- Extraction / input confidence ---- [confidence: MED] ---- */
+    confidence: {
+      fieldWeights: {
+        price: 3, finalMinutes: 2, footageHours: 2, deadline: 2,
+        revisionRounds: 2, shortsCount: 1, longformCount: 1,
+        approversCount: 1, features: 1
+      },
+      thresholds: { high: 0.75, medium: 0.45 },
+      priceMissingCap: 0.44              // without a price, never claim High confidence
+    },
+
+    /* ---- Advisory FX only. Never used in scoring. ---- */
+    fx: {
+      note: 'Indicative only — used to suggest an equivalent target rate, never to score a job.',
+      perUSD: { USD: 1, EUR: 0.92, GBP: 0.79, UGX: 3800, KES: 129, NGN: 1550, ZAR: 18.2, CAD: 1.37, AUD: 1.51, INR: 83.5 }
+    },
+
+    notes: {
+      weakest: [
+        'capacity.assumedHoursPerDay — one number decides every deadline verdict.',
+        'workload.editing.* — fitted to a single reference job, not a dataset.',
+        'scoring.weights — defensible, but not derived from outcome data.',
+        'risk.curves.scopeClarity — heuristic keyword counting.'
+      ]
+    }
+  };
+
+  var LEVEL_LABEL = { low: 'Low', medium: 'Medium', high: 'High' };
+
+  /* ========================================================================
+     SMALL MATH / FORMAT HELPERS
+     ==================================================================== */
+  function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+  function round1(n) { return Math.round(n * 10) / 10; }
+  function pct(n) { return Math.round(n); }
+
+  /** Piecewise-linear interpolation over [[x,y],...] sorted by x, clamped at both ends. */
+  function interpolate(points, x) {
+    if (!points.length) return 0;
+    if (x <= points[0][0]) return points[0][1];
+    for (var i = 1; i < points.length; i++) {
+      if (x <= points[i][0]) {
+        var x0 = points[i - 1][0], y0 = points[i - 1][1];
+        var x1 = points[i][0], y1 = points[i][1];
+        var t = (x1 - x0) === 0 ? 0 : (x - x0) / (x1 - x0);
+        return y0 + t * (y1 - y0);
+      }
+    }
+    return points[points.length - 1][1];
+  }
+
+  function severityLevel(severity) {
+    var b = CALIBRATION.risk.levelBands;
+    if (severity < b.lowBelow) return 'low';
+    if (severity < b.mediumBelow) return 'medium';
+    return 'high';
+  }
+
+  /* ========================================================================
+     CURRENCY
+     ==================================================================== */
+  var CURRENCIES = {
+    USD: { code: 'USD', symbol: '$',    label: 'USD ($)',    decimals: 2, typicalHourly: 30 },
+    EUR: { code: 'EUR', symbol: '\u20ac', label: 'EUR (\u20ac)', decimals: 2, typicalHourly: 28 },
+    GBP: { code: 'GBP', symbol: '\u00a3', label: 'GBP (\u00a3)', decimals: 2, typicalHourly: 25 },
+    UGX: { code: 'UGX', symbol: 'USh ', label: 'UGX (USh)',  decimals: 0, typicalHourly: 100000 },
+    KES: { code: 'KES', symbol: 'KSh ', label: 'KES (KSh)',  decimals: 0, typicalHourly: 3500 },
+    NGN: { code: 'NGN', symbol: '\u20a6', label: 'NGN (\u20a6)', decimals: 0, typicalHourly: 40000 },
+    ZAR: { code: 'ZAR', symbol: 'R',    label: 'ZAR (R)',    decimals: 2, typicalHourly: 500 },
+    CAD: { code: 'CAD', symbol: 'CA$',  label: 'CAD (CA$)',  decimals: 2, typicalHourly: 40 },
+    AUD: { code: 'AUD', symbol: 'A$',   label: 'AUD (A$)',   decimals: 2, typicalHourly: 45 },
+    INR: { code: 'INR', symbol: '\u20b9', label: 'INR (\u20b9)', decimals: 0, typicalHourly: 1200 }
+  };
+
+  /** Currencies whose everyday amounts are large — used for magnitude sanity checks. */
+  function isHighDenomination(code) {
+    return ['UGX', 'KES', 'NGN', 'INR'].indexOf(code) !== -1;
+  }
+
+  function currencyMeta(code) { return CURRENCIES[code] || CURRENCIES.USD; }
+
+  function fmtCurrency(amount, currencyCode) {
+    var meta = currencyMeta(currencyCode);
+    var rounded = Math.round(amount);
+    return meta.symbol + rounded.toLocaleString('en-US');
+  }
+
+  function fmtRate(amount, currencyCode) {
+    var meta = currencyMeta(currencyCode);
+    var value = meta.decimals === 0 ? Math.round(amount).toLocaleString('en-US') : amount.toFixed(2);
+    return meta.symbol + value + '/hr';
+  }
+
+  function fmtHours(n) { return round1(n) + 'h'; }
+
+  /** Advisory conversion used only to suggest a target rate after a currency switch. */
+  function convertAmount(amount, fromCode, toCode) {
+    var rates = CALIBRATION.fx.perUSD;
+    if (!rates[fromCode] || !rates[toCode]) return null;
+    return amount / rates[fromCode] * rates[toCode];
+  }
+
+  /* ========================================================================
+     JOB DESCRIPTION PARSER
+     Deterministic, offline, and deliberately conservative: a field is only
+     filled when a pattern matches with enough context to be trusted.
+     Returns { found, fields, labels, flags, currency, confidence }.
+     `fields` carries per-field evidence so the UI can explain itself.
+     ==================================================================== */
+
+  var WORD_NUMBERS = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+    nine: 9, ten: 10, eleven: 11, twelve: 12, a: 1, an: 1, couple: 2, few: 3, several: 4
+  };
+
+  var CURRENCY_TOKENS = [
+    { code: 'USD', re: '\\$|usd|us\\s?dollars?|dollars?|bucks' },
+    { code: 'EUR', re: '\u20ac|eur|euros?' },
+    { code: 'GBP', re: '\u00a3|gbp|pounds?|quid' },
+    { code: 'UGX', re: 'ugx|ush|shs|ugandan\\s+shillings?' },
+    { code: 'KES', re: 'kes|ksh|kenyan\\s+shillings?' },
+    { code: 'NGN', re: '\u20a6|ngn|naira' },
+    { code: 'ZAR', re: 'zar|rands?' },
+    { code: 'CAD', re: 'cad|c\\$' },
+    { code: 'AUD', re: 'aud|a\\$' },
+    { code: 'INR', re: '\u20b9|inr|rupees?' }
+  ];
+
+  /** Turn "1,200", "1.2k", "500k", "1.5m" into a number. */
+  function parseAmountToken(raw) {
+    if (raw == null) return NaN;
+    var s = String(raw).trim().toLowerCase().replace(/,/g, '');
+    var mult = 1;
+    if (/k$/.test(s)) { mult = 1000; s = s.replace(/k$/, ''); }
+    else if (/m$/.test(s)) { mult = 1000000; s = s.replace(/m$/, ''); }
+    var n = parseFloat(s);
+    return isNaN(n) ? NaN : n * mult;
+  }
+
+  function wordOrDigit(token) {
+    if (token == null) return NaN;
+    var t = String(token).trim().toLowerCase();
+    if (WORD_NUMBERS[t] != null) return WORD_NUMBERS[t];
+    var n = parseFloat(t.replace(/,/g, ''));
+    return isNaN(n) ? NaN : n;
+  }
+
+  /** True when the matched phrase sits inside a negation window ("no captions"). */
+  function isNegated(text, index) {
+    var window = text.slice(Math.max(0, index - 28), index).toLowerCase();
+    // A negation only reaches to the end of its own clause, so
+    // "No captions needed, just color grading" does not negate the grading.
+    var clause = window.split(/[,;:]|\b(?:but|just|only|however|although|though)\b/).pop();
+    return /\b(no|not|without|don'?t|do not|skip|exclude|avoid|isn'?t|aren'?t)\b/.test(clause);
+  }
+
+  function matchFeature(text, pattern) {
+    var re = new RegExp(pattern, 'i');
+    var m = re.exec(text);
+    if (!m) return false;
+    if (isNegated(text, m.index)) return false;
+    return true;
+  }
+
+  function parseCurrency(text) {
+    // Prefer an explicit code/symbol adjacent to a number.
+    for (var i = 0; i < CURRENCY_TOKENS.length; i++) {
+      var tok = CURRENCY_TOKENS[i];
+      var near = new RegExp('(?:' + tok.re + ')\\s*[\\d]|[\\d][\\d,.\\skm]*\\s*(?:' + tok.re + ')\\b', 'i');
+      if (near.test(text)) return tok.code;
+    }
+    for (var j = 0; j < CURRENCY_TOKENS.length; j++) {
+      if (new RegExp('(?:' + CURRENCY_TOKENS[j].re + ')', 'i').test(text)) return CURRENCY_TOKENS[j].code;
+    }
+    return null;
+  }
+
+  /**
+   * Price extraction. Handles $300 / USD 300 / 300 USD / UGX 500,000 /
+   * 500,000 UGX / £250 / 300usd / $1.2k / "budget is 300" / "$100 per video"
+   * and ranges like "$200-300" (the low end is used: clients pay the low end).
+   */
+  function parsePrice(text, currencyCode, counts) {
+    var symbolClass = '\\$|\\u20ac|\\u00a3|\\u20a6|\\u20b9';
+    var codeClass = 'usd|eur|gbp|ugx|ush|shs|kes|ksh|ngn|zar|cad|aud|inr|dollars?|euros?|pounds?|shillings?|naira|rupees?|bucks';
+    var num = '(\\d[\\d,]*(?:\\.\\d+)?\\s?[km]?)';
+    var candidates = [];
+
+    function push(value, evidence, startIndex, endIndex) {
+      if (isNaN(value) || value <= 0) return;
+      candidates.push({ value: value, evidence: evidence, start: startIndex, end: endIndex });
+    }
+
+    // A bare number followed by a unit noun is not money: "1-2 revisions",
+    // "3 hours of footage", "5 days". Only currency-anchored matches skip this.
+    var UNIT_AFTER = /^\s*(?:%|revisions?|rounds?|hours?|hrs?|days?|weeks?|months?|min(?:ute)?s?|shorts?|reels?|clips?|tiktoks?|videos?|people|persons?|approvers?|reviewers?|stakeholders?|x\b)/i;
+    var hasCurrencyMark = new RegExp('(?:' + symbolClass + ')|\\b(?:' + codeClass + ')\\b', 'i');
+    function unitFollows(matchText, index) {
+      return UNIT_AFTER.test(text.slice(index + matchText.length));
+    }
+
+    // Ranges: "$200-300", "200 to 300 USD", "between 200 and 300"
+    var rangeRe = new RegExp('(?:' + symbolClass + '|\\b(?:' + codeClass + ')\\b)?\\s*' + num +
+      '\\s*(?:-|\\u2013|to|and)\\s*(?:' + symbolClass + ')?\\s*' + num +
+      '\\s*(?:\\b(?:' + codeClass + ')\\b)?', 'i');
+    var priceContext = /(budget|pay|paying|offer|offering|rate|price|fee|compensation|paid|pays)\s*(?:of|is|:|at)?\s*$/i;
+    var rm = rangeRe.exec(text);
+    if (rm) {
+      var rangeIsMoney = hasCurrencyMark.test(rm[0]) ||
+        priceContext.test(text.slice(Math.max(0, rm.index - 28), rm.index));
+      if (rangeIsMoney && !unitFollows(rm[0], rm.index)) {
+        var lo = parseAmountToken(rm[1]);
+        if (!isNaN(lo) && lo > 0) push(lo, rm[0].trim() + ' (low end used \u2014 clients pay the low end)', rm.index, rm.index + rm[0].length);
+      }
+    }
+
+    if (!candidates.length) {
+      var m;
+      // symbol/code before the number: $300, USD 300, UGX 500,000
+      var beforeRe = new RegExp('(?:' + symbolClass + '|\\b(?:' + codeClass + ')\\b)\\s*' + num, 'gi');
+      while ((m = beforeRe.exec(text)) !== null) push(parseAmountToken(m[1]), m[0].trim(), m.index, m.index + m[0].length);
+      // number before the symbol/code: 300 USD, 500,000 UGX, 300usd
+      var afterRe = new RegExp(num + '\\s*(?:' + symbolClass + '|\\b(?:' + codeClass + ')\\b)', 'gi');
+      while ((m = afterRe.exec(text)) !== null) push(parseAmountToken(m[1]), m[0].trim(), m.index, m.index + m[0].length);
+    }
+
+    if (!candidates.length) {
+      // bare number in an explicit money context: "budget is 300", "pays 500000"
+      var bareRe = new RegExp('\\b(?:budget|pay|paying|pays|offer|offering|price|fee|compensation)\\b[^.\\n]{0,24}?' + num, 'i');
+      var bm = bareRe.exec(text);
+      if (bm && !unitFollows(bm[0], bm.index)) push(parseAmountToken(bm[1]), bm[0].trim(), bm.index, bm.index + bm[0].length);
+    }
+
+    if (!candidates.length) return null;
+
+    // Prefer the largest plausible figure: clients usually state the total last
+    // and smaller numbers are often per-unit or unrelated.
+    candidates.sort(function (a, b) { return b.value - a.value; });
+    var best = candidates[0];
+    var value = best.value;
+    var evidence = best.evidence;
+
+    // A recurring-period qualifier ("$800/month", "$800 per month", "monthly
+    // budget: $800") attaches to the price wherever it sits in the sentence,
+    // not just right after the number, so this checks a window on both
+    // sides of the match rather than only what follows it.
+    var periodWindow = text.slice(Math.max(0, best.start - 26), Math.min(text.length, best.end + 26));
+    var periodMatch = /\/\s*(month|week|day)\b|\bper\s+(month|week|day)\b|\b(month|week|dai)ly\b/i.exec(periodWindow);
+    var period = periodMatch ? (periodMatch[1] || periodMatch[2] || (periodMatch[3] === 'dai' ? 'day' : periodMatch[3])).toLowerCase() : null;
+
+    if (!period) {
+      // "$100 per video" — multiply out a per-unit price, but only when the
+      // "per X" phrase is the thing immediately following THIS price match,
+      // not merely present somewhere else in the description. Matching the
+      // whole text was how an unrelated "per reel" turnaround clause could
+      // multiply a completely different budget figure.
+      var afterText = text.slice(best.end, best.end + 20);
+      var perUnit = /^[\s,]*per\s+(video|short|clip|reel|edit|deliverable)\b/i.exec(afterText);
+      if (perUnit && candidates.length === 1) {
+        var unitsWord = perUnit[1].toLowerCase();
+        var units = (unitsWord === 'video' || unitsWord === 'edit') ? Math.max(1, counts.longformCount || 1)
+          : (unitsWord === 'deliverable' ? Math.max(1, (counts.longformCount || 0) + (counts.shortsCount || 0))
+          : Math.max(1, counts.shortsCount || 1));
+        if (units > 1) {
+          value = value * units;
+          evidence = best.evidence + ' \u00d7 ' + units + ' (per-' + unitsWord + ' pricing)';
+        }
+      }
+    } else {
+      evidence = best.evidence + ' (' + period + 'ly budget \u2014 not multiplied by deliverable count)';
+    }
+    return { value: value, evidence: evidence, recurring: !!period, period: period };
+  }
+
+  function parseJobDescription(text) {
+    var found = {};
+    var fields = {};
+    var labels = [];
+    var flags = [];
+    var m;
+
+    function record(key, value, label, evidence) {
+      found[key] = value;
+      fields[key] = { value: value, evidence: evidence };
+      if (label && labels.indexOf(label) === -1) labels.push(label);
+    }
+
+    var currency = parseCurrency(text);
+    if (currency) record('currency', currency, 'currency', currency);
+
+    /* ---- final video length (minutes) ---- */
+    m = /(\d+(?:\.\d+)?)\s*(?:-|\u2013|to)\s*(\d+(?:\.\d+)?)\s*min(?:ute)?s?\b/i.exec(text);
+    if (m) {
+      record('finalMinutes', (parseFloat(m[1]) + parseFloat(m[2])) / 2, 'final video length', m[0] + ' (midpoint)');
+    } else if ((m = /(\d+(?:\.\d+)?)[\s-]*min(?:ute)?s?\b(?![^.]{0,20}footage)/i.exec(text))) {
+      record('finalMinutes', parseFloat(m[1]), 'final video length', m[0]);
+    } else if (/\b(an?\s+hour[- ]?long|1\s*hour[- ]?long|hour[- ]?long)\b/i.test(text)) {
+      record('finalMinutes', 60, 'final video length', 'hour-long');
+    }
+
+    /* ---- raw footage ---- */
+    m = /(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b[^.]{0,20}?(?:of\s*)?(?:raw\s*)?footage/i.exec(text) ||
+        /footage[^.]{0,30}?(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/i.exec(text);
+    if (m) { record('footageHours', parseFloat(m[1]), 'raw footage length', m[0].trim()); }
+    else {
+      m = /(\d+(?:\.\d+)?)\s*min(?:ute)?s?\s*(?:of\s*)?(?:raw\s*)?footage/i.exec(text) ||
+          /footage[^.]{0,30}?(\d+(?:\.\d+)?)\s*min(?:ute)?s?/i.exec(text);
+      if (m) record('footageHours', round1(parseFloat(m[1]) / 60), 'raw footage length', m[0].trim());
+    }
+
+    /* ---- shorts / reels / clips ---- */
+    // Range first: "20-30 reels" is a quantity range, not a single count of
+    // 30 (which is what a single-number match would grab, since it sits
+    // right next to the unit word). Use the midpoint, same convention as
+    // every other range in this parser, and say so in the evidence.
+    var shortsUnit = '(?:shorts?|reels?|tiktoks?|clips?|cut[- ]?downs?|vertical\\s+videos?)';
+    m = new RegExp('(\\d+)\\s*(?:-|\\u2013|to)\\s*(\\d+)\\s*(?:x\\s*)?' + shortsUnit, 'i').exec(text);
+    if (m && !isNegated(text, m.index)) {
+      var scMid = Math.round((parseInt(m[1], 10) + parseInt(m[2], 10)) / 2);
+      record('shortsCount', scMid, 'number of Shorts', m[0].trim() + ' (midpoint ' + scMid + ' used)');
+    }
+    if (found.shortsCount == null) {
+      m = new RegExp('(\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|a\\s+few|several)\\s*(?:x\\s*)?' + shortsUnit, 'i').exec(text);
+      if (m && !isNegated(text, m.index)) {
+        var sc = wordOrDigit(m[1].replace(/\s+/g, ' ').replace('a few', 'few'));
+        if (!isNaN(sc)) record('shortsCount', sc, 'number of Shorts', m[0].trim());
+      }
+    }
+
+    /* ---- long-form count ---- */
+    var longformUnit = '(?:long[- ]?form|full[- ]length|main)\\s*videos?';
+    m = new RegExp('(\\d+)\\s*(?:-|\\u2013|to)\\s*(\\d+)\\s*(?:x\\s*)?' + longformUnit, 'i').exec(text);
+    if (m) {
+      var lfMid = Math.round((parseInt(m[1], 10) + parseInt(m[2], 10)) / 2);
+      record('longformCount', lfMid, 'number of long-form videos', m[0].trim() + ' (midpoint ' + lfMid + ' used)');
+    }
+    if (found.longformCount == null) {
+      m = new RegExp('(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(?:x\\s*)?' + longformUnit, 'i').exec(text) ||
+          /(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:youtube\s*)?videos?\b(?!\s*(?:per|a)\b)/i.exec(text);
+      if (m) {
+        var lf = wordOrDigit(m[1]);
+        if (!isNaN(lf) && lf > 0 && lf < 100) record('longformCount', lf, 'number of long-form videos', m[0].trim());
+      }
+    }
+    if (found.longformCount == null && found.finalMinutes != null) {
+      record('longformCount', 1, null, 'implied by a stated video length');
+      flags.push('longform-implied');
+    }
+
+    /* ---- deadline ---- */
+    var deadlineFound = false;
+    m = /(\d+)\s*(?:-|\u2013|to)\s*(\d+)\s*(hours?|hrs?|days?|weeks?)/i.exec(text);
+    if (m && /(deadline|within|turnaround|delivery|deliver|need|due|by|rush|asap)/i.test(text.slice(Math.max(0, m.index - 40), m.index + 30))) {
+      var lowEnd = parseInt(m[1], 10);   // clients hold you to the short end
+      var isWeeks = /week/i.test(m[3]);
+      record('deadlineValue', isWeeks ? lowEnd * 7 : lowEnd, 'deadline', m[0] + ' (short end used)');
+      record('deadlineUnit', (isWeeks || /day/i.test(m[3])) ? 'days' : 'hours', null, m[0]);
+      deadlineFound = true;
+    }
+    if (!deadlineFound) {
+      m = /(?:within|in|deadline[^.]{0,18}?|turnaround[^.]{0,12}?|due\s+in|delivered?\s+in|need(?:ed)?\s+(?:it\s+)?in)\s*(\d+|one|two|three|four|five|six|seven|ten)[\s-]*(hours?|hrs?|h|days?|weeks?|business\s+days?)/i.exec(text) ||
+          /(\d+|one|two|three|four|five|six|seven|ten)[\s-]*(hours?|hrs?|days?|weeks?)\s*(?:turnaround|deadline|delivery)/i.exec(text);
+      if (m) {
+        var dv = wordOrDigit(m[1]);
+        var unit = /week/i.test(m[2]) ? 'weeks' : (/day/i.test(m[2]) ? 'days' : 'hours');
+        if (!isNaN(dv)) {
+          record('deadlineValue', unit === 'weeks' ? dv * 7 : dv, 'deadline', m[0].trim());
+          record('deadlineUnit', unit === 'hours' ? 'hours' : 'days', null, m[0].trim());
+          deadlineFound = true;
+        }
+      }
+    }
+    if (!deadlineFound) {
+      if (/\b(asap|as soon as possible|immediately|right away|today)\b/i.test(text)) {
+        record('deadlineValue', 24, 'deadline', 'ASAP / today');
+        record('deadlineUnit', 'hours', null, 'ASAP');
+        flags.push('rush');
+      } else if (/\b(tomorrow|overnight|by morning|end of day|eod)\b/i.test(text)) {
+        record('deadlineValue', 24, 'deadline', 'tomorrow / overnight');
+        record('deadlineUnit', 'hours', null, 'tomorrow');
+        flags.push('rush');
+      } else if (/\bthis week(end)?\b/i.test(text)) {
+        record('deadlineValue', 4, 'deadline', 'this week');
+        record('deadlineUnit', 'days', null, 'this week');
+        flags.push('deadline-assumed');
+      } else if (/\bnext week\b/i.test(text)) {
+        record('deadlineValue', 7, 'deadline', 'next week');
+        record('deadlineUnit', 'days', null, 'next week');
+        flags.push('deadline-assumed');
+      } else if ((m = /(?:^|[,.;]\s*)(\d+|one|two|three|four|five|six|seven|ten)\s*(hours?|hrs?|days?|weeks?)\s*(?:[,.;!]|$)/i.exec(text))) {
+        // A bare time phrase in its own clause: "6 hours of footage, 2 weeks."
+        var bareVal = wordOrDigit(m[1]);
+        var bareUnit = /week/i.test(m[2]) ? 'weeks' : (/day/i.test(m[2]) ? 'days' : 'hours');
+        if (!isNaN(bareVal)) {
+          record('deadlineValue', bareUnit === 'weeks' ? bareVal * 7 : bareVal, 'deadline', m[0].trim());
+          record('deadlineUnit', bareUnit === 'hours' ? 'hours' : 'days', null, m[0].trim());
+        }
+      } else if (/\bby\s+(mon|tues|wednes|thurs|fri|satur|sun)day\b/i.test(text)) {
+        record('deadlineValue', 5, 'deadline', 'named weekday (assumed ~5 days)');
+        record('deadlineUnit', 'days', null, 'named weekday');
+        flags.push('deadline-assumed');
+      }
+    }
+
+    /* ---- revisions ---- */
+    if (/\b(unlimited|as many|endless|until (?:you'?re|we'?re|i'?m|he'?s|she'?s|they'?re)?\s*(?:happy|satisfied)|till satisfied|until satisfied)\b[^.]{0,24}revision/i.test(text) ||
+        /revisions?[^.]{0,20}\b(unlimited|until (?:you'?re|we'?re|i'?m)?\s*(?:happy|satisfied))\b/i.test(text)) {
+      record('revisionRounds', CALIBRATION.workload.revisions.unlimitedAssumedRounds, 'revision rounds', 'unlimited revisions');
+      flags.push('unlimited-revisions');
+    } else if ((m = /(\d+)\s*(?:-|\u2013|to)\s*(\d+)\s*(?:rounds?\s*of\s*)?revisions?/i.exec(text))) {
+      record('revisionRounds', (parseInt(m[1], 10) + parseInt(m[2], 10)) / 2, 'revision rounds', m[0] + ' (midpoint)');
+    } else if ((m = /(?:up\s*to\s*)?(\d+|one|two|three|four|five|a\s+couple\s+of|couple\s+of|few)\s*(?:rounds?\s*of\s*)?revisions?/i.exec(text))) {
+      var rv = wordOrDigit(m[1].replace(/a\s+couple\s+of|couple\s+of/i, 'couple').replace(/\s+/g, ''));
+      if (!isNaN(rv)) record('revisionRounds', rv, 'revision rounds', m[0].trim());
+    } else if ((m = /revisions?[^.]{0,14}?(\d+)/i.exec(text))) {
+      record('revisionRounds', parseInt(m[1], 10), 'revision rounds', m[0].trim());
+    } else if (/\bno revisions?\b/i.test(text)) {
+      record('revisionRounds', 0, 'revision rounds', 'no revisions');
+    }
+
+    /* ---- approvers ---- */
+    // Labelled-field style first: "Approvers: 1", "Approver - 2". This is
+    // the most explicit form a client can use and must always be read.
+    m = /\bapprovers?\s*[:\-]\s*(\d+|one|two|three|four|five)\b/i.exec(text);
+    if (m) {
+      var apLabel = wordOrDigit(m[1]);
+      if (!isNaN(apLabel)) record('approversCount', apLabel, 'number of approvers', m[0].trim());
+    }
+    if (found.approversCount == null) {
+      // "approver(s)/stakeholder(s)/reviewer(s)" are unambiguous on their
+      // own — a trailing verb ("...will approve") is a bonus, not a
+      // requirement, so "1 approver." on its own is no longer dropped.
+      m = /(\d+|one|two|three|four|five|a\s+few|several)\s*(?:x\s*)?(?:approvers?|stakeholders?|reviewers?)\b/i.exec(text) ||
+          /(\d+|two|three|four|five|a\s+few|several)\s*(?:people|persons?|of us|team members?)\s*(?:are\s*|will\s*|need\s*to\s*|have\s*to\s*)?(?:approv|review|sign|check)/i.exec(text) ||
+          /(?:team|committee|board)\s*of\s*(\d+|two|three|four|five)\b[^.]{0,20}(?:approv|review|sign)/i.exec(text);
+      if (m) {
+        var ap = wordOrDigit(m[1].replace(/a\s+few/i, 'few'));
+        if (!isNaN(ap)) record('approversCount', ap, 'number of approvers', m[0].trim());
+      }
+    }
+    if (found.approversCount == null) {
+      if (/\b(my|our)\s+(boss|manager|client|partner|director|producer)\b[^.]{0,30}(approv|sign|review)/i.test(text)) {
+        record('approversCount', 2, 'number of approvers', 'a second approver is mentioned (assumed)');
+        flags.push('approvers-assumed');
+      } else if (/\b(the\s+)?(team|committee|board|stakeholders)\b[^.]{0,30}(approv|sign off|review)/i.test(text)) {
+        record('approversCount', 3, 'number of approvers', 'a team/committee approves (assumed 3)');
+        flags.push('approvers-assumed');
+      }
+    }
+
+    /* ---- price (needs counts, so it runs after them) ---- */
+    var priceResult = parsePrice(text, currency, { longformCount: found.longformCount, shortsCount: found.shortsCount });
+    if (priceResult) {
+      record('price', priceResult.value, 'client\u2019s offer', priceResult.evidence);
+      // Informational only — the engine still just reads found.price as the
+      // total for this job. This flag is for the extraction summary, so a
+      // monthly figure is never silently misread as a per-video price.
+      if (priceResult.recurring) { found.priceIsRecurring = true; found.pricePeriod = priceResult.period; }
+    }
+
+    /* ---- feature toggles ---- */
+    if (matchFeature(text, 'captions?|subtitles?|\\bsrt\\b|closed[- ]captions?|\\bcc\\b\\s+file')) record('captions', true, 'captions', 'captions/subtitles');
+    var advanced = matchFeature(text, '(animated|advanced|complex|3d|custom)\\s*(motion\\s*)?graphics|motion\\s*graphics|after\\s*effects|\\banimation\\b|kinetic\\s*typography');
+    if (advanced) record('advancedGraphics', true, 'advanced motion graphics', 'motion graphics/animation');
+    else if (matchFeature(text, 'graphics|lower[- ]thirds?|titles?\\b|text\\s*overlays?')) record('basicGraphics', true, 'basic graphics', 'graphics/titles');
+    if (matchFeature(text, 'colou?r\\s*(grading|grade|correction)|\\bluts?\\b|colou?r\\s*work')) record('colorGrading', true, 'color grading', 'color grading');
+    if (matchFeature(text, '(sound|audio)\\s*(clean[\\s-]?up|mix|mixing|design|sweetening)|noise\\s*(reduction|removal)|denoise')) record('soundCleanup', true, 'sound cleanup', 'audio cleanup/mix');
+    if (matchFeature(text, 'b[- ]?roll|stock\\s*(footage|video|clips?)')) record('broll', true, 'B-roll', 'B-roll/stock');
+    if (matchFeature(text, 'music|sound\\s*effects?|\\bsfx\\b|background\\s*track|licensed\\s*track')) record('music', true, 'music / SFX', 'music/SFX');
+    if (matchFeature(text, '(project|source|raw)\\s*files?|editable\\s*project|\\bprproj\\b|\\baep\\b|project\\s*hand[- ]?over|handoff')) record('sourceFiles', true, 'source files required', 'project/source files');
+
+    /* ---- red flags (feed scope-clarity risk and hard rejects) ---- */
+    if (/\b(unpaid|no pay|for exposure|for the exposure|for credit|revenue share|rev\s?share|profit share|equity only)\b/i.test(text)) flags.push('unpaid');
+    if (/\b(test|trial|sample)\s+(edit|video|project|task)\b/i.test(text) && /\b(unpaid|free|no pay)\b/i.test(text)) flags.push('unpaid-test');
+    if (/\b(long[- ]term|ongoing|more work|future work|many more)\b[^.]{0,40}\b(if|potential|opportunity|coming)\b/i.test(text)) flags.push('future-work-leverage');
+    if (/\b(quick|simple|easy|small|shouldn'?t take long|just a)\b[^.]{0,24}(job|edit|project|task|video)/i.test(text)) flags.push('minimised-scope');
+    if (/\b(etc\.?|and more|among others|things like that|stuff like)\b/i.test(text)) flags.push('open-ended-scope');
+    if (/\b(rush|urgent|asap|immediately|today|overnight)\b/i.test(text) && flags.indexOf('rush') === -1) flags.push('rush');
+    if (/\b(we'?ll see|figure (it )?out|play it by ear|flexible scope|tbd|to be decided)\b/i.test(text)) flags.push('undefined-scope');
+    if (/\b(viral|blow up|millions of views)\b/i.test(text)) flags.push('hype');
+
+    return {
+      found: found,
+      fields: fields,
+      labels: labels,
+      flags: flags,
+      currency: currency,
+      confidence: extractionConfidence(found),
+      status: classifyFieldStatus(found, flags)
+    };
+  }
+
+  /* ========================================================================
+     FIELD PROVENANCE — separate from the confidence *score* below, which is
+     left untouched. This only labels each already-extracted field as
+     'explicit' (directly stated), 'inferred' (a modelling convention applied
+     to something the client did state, e.g. "unlimited" \u2192 5 rounds), or
+     'assumed' (a heuristic guess from indirect wording, e.g. "the team will
+     review it" \u2192 3 approvers). Never-mentioned fields simply have no
+     entry here, i.e. unknown \u2014 they are never given a status at all,
+     let alone 'explicit'. Used only to separate "Extracted facts" from
+     "Assumptions" in the extraction summary; it does not feed the verdict.
+     ==================================================================== */
+  var FEATURE_KEYS = ['captions', 'basicGraphics', 'advancedGraphics', 'colorGrading', 'soundCleanup', 'broll', 'music', 'sourceFiles'];
+
+  function classifyFieldStatus(found, flags) {
+    var status = {};
+    function set(key, level) { if (found[key] != null) status[key] = level; }
+
+    set('price', 'explicit');
+    set('finalMinutes', 'explicit');
+    set('footageHours', 'explicit');
+    set('shortsCount', 'explicit');
+    set('longformCount', flags.indexOf('longform-implied') !== -1 ? 'inferred' : 'explicit');
+    set('deadlineValue', (flags.indexOf('deadline-assumed') !== -1 || flags.indexOf('rush') !== -1) ? 'assumed' : 'explicit');
+    set('revisionRounds', flags.indexOf('unlimited-revisions') !== -1 ? 'inferred' : 'explicit');
+    set('approversCount', flags.indexOf('approvers-assumed') !== -1 ? 'assumed' : 'explicit');
+    FEATURE_KEYS.forEach(function (k) { if (found[k]) status[k] = 'explicit'; });
+    return status;
+  }
+
+  /* ========================================================================
+     CONFIDENCE
+     Two related measures:
+       extractionConfidence — how much the parser pulled out of free text.
+       inputConfidence      — how complete the fields are at analysis time
+                              (after any manual edits). This is the one that
+                              belongs next to a verdict.
+     ==================================================================== */
+  function confidenceBand(ratio) {
+    var t = CALIBRATION.confidence.thresholds;
+    if (ratio >= t.high) return 'High';
+    if (ratio >= t.medium) return 'Medium';
+    return 'Low';
+  }
+
+  function scoreFieldCoverage(has) {
+    var w = CALIBRATION.confidence.fieldWeights;
+    var total = 0, got = 0, missing = [];
+    Object.keys(w).forEach(function (key) {
+      total += w[key];
+      if (has[key]) got += w[key]; else missing.push(key);
+    });
+    var ratio = total > 0 ? got / total : 0;
+    if (!has.price) ratio = Math.min(ratio, CALIBRATION.confidence.priceMissingCap);
+    return { ratio: ratio, band: confidenceBand(ratio), missing: missing };
+  }
+
+  function extractionConfidence(found) {
+    var has = {
+      price: found.price != null,
+      finalMinutes: found.finalMinutes != null,
+      footageHours: found.footageHours != null,
+      deadline: found.deadlineValue != null,
+      revisionRounds: found.revisionRounds != null,
+      shortsCount: found.shortsCount != null,
+      longformCount: found.longformCount != null,
+      approversCount: found.approversCount != null,
+      features: ['captions', 'basicGraphics', 'advancedGraphics', 'colorGrading', 'soundCleanup', 'broll', 'music', 'sourceFiles']
+        .some(function (k) { return found[k]; })
+    };
+    return scoreFieldCoverage(has);
+  }
+
+  var MISSING_FIELD_LABEL = {
+    price: 'the client\u2019s offer', finalMinutes: 'final video length',
+    footageHours: 'raw footage length', deadline: 'the deadline',
+    revisionRounds: 'revision rounds', shortsCount: 'number of Shorts',
+    longformCount: 'number of long-form videos', approversCount: 'number of approvers',
+    features: 'what work is included (captions, graphics, etc.)'
+  };
+
+  function inputConfidence(job) {
+    var has = {
+      price: job.price > 0,
+      finalMinutes: job.finalMinutes > 0 || job.longformCount === 0,
+      footageHours: job.footageHours > 0,
+      deadline: job.deadlineValue > 0,
+      revisionRounds: job.revisionRounds != null,
+      shortsCount: true,
+      longformCount: (job.longformCount + job.shortsCount) > 0,
+      approversCount: job.approversCount >= 1,
+      features: ['captions', 'basicGraphics', 'advancedGraphics', 'colorGrading', 'soundCleanup', 'broll', 'music', 'sourceFiles']
+        .some(function (k) { return job[k]; })
+    };
+    var result = scoreFieldCoverage(has);
+    result.missingLabels = result.missing.map(function (k) { return MISSING_FIELD_LABEL[k] || k; });
+    return result;
+  }
+
+  /* ========================================================================
+     JOB NORMALISATION — one canonical shape for the engine, whatever the
+     caller (form, test harness, restored draft) provides.
+     ==================================================================== */
+  function normalizeJob(raw) {
+    function num(v, fallback) {
+      var n = parseFloat(v);
+      return isNaN(n) ? fallback : n;
+    }
+    var job = {
+      currency: raw.currency || 'USD',
+      targetRate: Math.max(0, num(raw.targetRate, 0)),
+      price: Math.max(0, num(raw.price, 0)),
+      longformCount: Math.max(0, num(raw.longformCount, 0)),
+      finalMinutes: Math.max(0, num(raw.finalMinutes, 0)),
+      shortsCount: Math.max(0, num(raw.shortsCount, 0)),
+      footageHours: Math.max(0, num(raw.footageHours, 0)),
+      approversCount: Math.max(1, num(raw.approversCount, 1)),
+      deadlineValue: Math.max(0, num(raw.deadlineValue, 0)),
+      deadlineUnit: raw.deadlineUnit === 'days' ? 'days' : 'hours',
+      revisionRounds: Math.max(0, num(raw.revisionRounds, 0)),
+      flags: raw.flags || [],
+      captions: !!raw.captions,
+      basicGraphics: !!raw.basicGraphics,
+      advancedGraphics: !!raw.advancedGraphics,
+      colorGrading: !!raw.colorGrading,
+      soundCleanup: !!raw.soundCleanup,
+      broll: !!raw.broll,
+      music: !!raw.music,
+      sourceFiles: !!raw.sourceFiles
+    };
+    job.totalDeliverables = job.longformCount + job.shortsCount;
+    job.deadlineHoursTotal = job.deadlineUnit === 'days' ? job.deadlineValue * 24 : job.deadlineValue;
+    return job;
+  }
+
+  /* ========================================================================
+     WORKLOAD — hours split into editing / revisions / communication / hidden.
+     ==================================================================== */
+  function computeWorkload(rawJob) {
+    var job = rawJob.totalDeliverables != null ? rawJob : normalizeJob(rawJob);
+    var cfg = CALIBRATION.workload;
+    var f = cfg.editing.features;
+    var totalDeliverables = job.totalDeliverables;
+    var why = [];
+
+    /* --- Editing --- */
+    var projectSetup = totalDeliverables > 0 ? cfg.editing.projectBaseHours : 0;
+    if (projectSetup) why.push('project setup \u2014 organizing the brief & project file \u2192 ' + round1(projectSetup) + 'h (once per job)');
+
+    // Long-form base, with a batch discount once you are cutting the same
+    // format repeatedly (videos 3 and beyond).
+    var batched = Math.max(0, job.longformCount - 2);
+    var unbatched = job.longformCount - batched;
+    var longFormEditing = (unbatched + batched * cfg.editing.longFormBatchDiscount) * cfg.editing.longFormBaseHours;
+    var extraMinutes = Math.max(0, job.finalMinutes - 5);
+    var longFormLength = job.longformCount * extraMinutes * cfg.editing.perExtraMinute;
+    if (job.longformCount > 0) {
+      why.push(job.longformCount + ' long-form video(s) \u00d7 ' + cfg.editing.longFormBaseHours + 'h base cut' +
+        (batched > 0 ? ' (with a batch discount from the 3rd onward)' : '') +
+        (extraMinutes > 0 ? ' + ' + round1(longFormLength) + 'h for ' + round1(job.finalMinutes) + '-minute length beyond a 5-min base' : '') +
+        ' \u2192 ' + round1(longFormEditing + longFormLength) + 'h');
+    }
+
+    var footageReview = job.footageHours * cfg.editing.footageReviewPerHour;
+    if (job.footageHours > 0) why.push(round1(job.footageHours) + 'h of raw footage reviewed once, not per deliverable \u2192 ' + round1(footageReview) + 'h');
+
+    var shortsEditing = 0;
+    if (job.shortsCount > 0) {
+      shortsEditing = cfg.editing.shortFirstHours + Math.max(0, job.shortsCount - 1) * cfg.editing.shortAdditionalHours;
+      why.push(job.shortsCount + ' Short(s) from that same reviewed footage: ' + cfg.editing.shortFirstHours + 'h for the first + ' +
+        cfg.editing.shortAdditionalHours + 'h each after \u2192 ' + round1(shortsEditing) + 'h');
+    }
+
+    // Feature work scales with runtime — captioning a 45-min doc is not the
+    // same job as captioning a 5-min video.
+    var ls = cfg.editing.featureLengthScale;
+    var lengthFactor = clamp(1 + Math.max(0, job.finalMinutes - ls.perMinuteOver) * ls.factorPerMinute, 1, ls.maxFactor);
+    var featureEditing = 0;
+    Object.keys(f).forEach(function (key) {
+      if (!job[key]) return;
+      var spec = f[key];
+      var add = job.longformCount * spec.longForm * lengthFactor + job.shortsCount * spec.short;
+      featureEditing += add;
+      why.push(spec.label + ' across ' + totalDeliverables + ' deliverable(s) \u2192 ' + round1(add) + 'h');
+    });
+
+    var editingHours = projectSetup + longFormEditing + longFormLength + footageReview + shortsEditing + featureEditing;
+
+    /* --- Revisions --- */
+    var extraDeliverables = Math.max(0, totalDeliverables - 1);
+    var perRound = cfg.revisions.baseHoursPerRound + extraDeliverables * cfg.revisions.perExtraDeliverablePerRound;
+    var revisionHours = 0;
+    var whole = Math.floor(job.revisionRounds);
+    var frac = job.revisionRounds - whole;
+    for (var r = 0; r < whole; r++) revisionHours += perRound * (1 + r * cfg.revisions.escalationPerRound);
+    if (frac > 0) revisionHours += perRound * (1 + whole * cfg.revisions.escalationPerRound) * frac;
+    if (job.revisionRounds > 0) {
+      why.push(round1(job.revisionRounds) + ' revision round(s) \u00d7 ~' + round1(perRound) + 'h each, with later rounds costing more \u2192 ' + round1(revisionHours) + 'h');
+    }
+
+    /* --- Communication --- */
+    var isTight = job.deadlineHoursTotal > 0 && job.deadlineHoursTotal < cfg.communication.tightDeadlineThresholdHours;
+    var communicationBase = cfg.communication.base
+      + job.approversCount * cfg.communication.perApprover
+      + totalDeliverables * cfg.communication.perDeliverable
+      + job.revisionRounds * cfg.communication.perRevisionRound;
+    var communicationHours = communicationBase + (isTight ? cfg.communication.tightDeadlineBonus : 0);
+    why.push('briefing, messages & delivery for ' + job.approversCount + ' approver(s), ' + totalDeliverables + ' deliverable(s) and ' + round1(job.revisionRounds) + ' round(s) \u2192 ' + round1(communicationBase) + 'h');
+    if (isTight) why.push('tight turnaround (under ' + cfg.communication.tightDeadlineThresholdHours + 'h) adds extra back-and-forth \u2192 ' + cfg.communication.tightDeadlineBonus + 'h');
+
+    /* --- Hidden work --- */
+    var hiddenCore = job.footageHours * cfg.hidden.footageOrganizingPerHour
+      + cfg.hidden.exportBase
+      + totalDeliverables * cfg.hidden.exportPerDeliverable
+      + cfg.hidden.feedbackBuffer
+      + job.revisionRounds * totalDeliverables * cfg.hidden.reExportPerRound;
+    var hiddenHours = hiddenCore + (job.sourceFiles ? cfg.hidden.sourceFilesPrep : 0);
+    why.push('downloading/organizing footage, exporting ' + totalDeliverables + ' version(s) plus re-exports, and a feedback-wait buffer \u2192 ' + round1(hiddenCore) + 'h');
+    if (job.sourceFiles) why.push('preparing editable project/source files \u2192 ' + cfg.hidden.sourceFilesPrep + 'h');
+
+    var totalHours = editingHours + revisionHours + communicationHours + hiddenHours;
+    var unpaidShare = totalHours > 0 ? (communicationHours + hiddenHours) / totalHours : 0;
+
+    return {
+      editingHours: editingHours,
+      revisionHours: revisionHours,
+      communicationHours: communicationHours,
+      hiddenHours: hiddenHours,
+      totalHours: totalHours,
+      totalDeliverables: totalDeliverables,
+      deadlineHoursTotal: job.deadlineHoursTotal,
+      unpaidShare: unpaidShare,
+      why: why
+    };
+  }
+
+  /* ========================================================================
+     FINANCIALS
+     ==================================================================== */
+  function computeFinancials(job, workload) {
+    var effectiveRate = workload.totalHours > 0 ? job.price / workload.totalHours : 0;
+    var minimumPrice = workload.totalHours * job.targetRate;
+    var difference = job.price - minimumPrice;
+    var profitabilityRatio = job.targetRate > 0 ? effectiveRate / job.targetRate : null;
+    return {
+      effectiveRate: effectiveRate,
+      minimumPrice: minimumPrice,
+      difference: difference,
+      profitabilityRatio: profitabilityRatio
+    };
+  }
+
+  /* ========================================================================
+     AXIS 1 — PROFITABILITY SCORE (0-100, higher is better)
+     ==================================================================== */
+  function computeProfitabilityScore(fin) {
+    if (fin.profitabilityRatio == null) {
+      // No target rate set: we cannot judge the money. Score neutrally and
+      // let the no-rate gate stop this from reading as an Accept.
+      return { score: 50, unknown: true };
+    }
+    return { score: clamp(interpolate(CALIBRATION.profitabilityCurve, fin.profitabilityRatio), 0, 100), unknown: false };
+  }
+
+  /* ========================================================================
+     AXIS 2 — WORKLOAD PRESSURE (0-100, higher is worse)
+     Owns everything schedule-related so nothing is counted twice.
+     ==================================================================== */
+  function computePressure(job, workload) {
+    var cap = CALIBRATION.capacity;
+    var p = CALIBRATION.pressure;
+    var hoursPerDay = (job.deadlineHoursTotal > 0 && job.deadlineHoursTotal <= cap.rushThresholdHours)
+      ? cap.rushHoursPerDay : cap.assumedHoursPerDay;
+    var workingDays = job.deadlineHoursTotal / 24;
+    var capacityHours = job.deadlineValue > 0 ? Math.max(cap.minCapacityHours, workingDays * hoursPerDay) : 0;
+
+    var deadlineRatio = null, deadlineSeverity;
+    if (job.deadlineValue <= 0) {
+      deadlineSeverity = p.unknownDeadlineSeverity;
+    } else {
+      deadlineRatio = workload.totalHours / capacityHours;
+      deadlineSeverity = clamp(interpolate(p.deadlineRatioCurve, deadlineRatio), 0, 100);
+    }
+    var volumeSeverity = clamp(interpolate(p.absoluteHoursCurve, workload.totalHours), 0, 100);
+    var score = clamp(p.deadlineWeight * deadlineSeverity + p.absoluteWeight * volumeSeverity, 0, 100);
+
+    var explain;
+    if (job.deadlineValue <= 0) {
+      explain = 'No deadline given. An unstated turnaround is treated as mild uncertainty \u2014 clients often reveal a tight date after you accept.';
+    } else {
+      explain = 'About ' + round1(workload.totalHours) + 'h of work against roughly ' + round1(capacityHours) +
+        'h of realistic capacity in the ' + round1(job.deadlineValue) + '-' + (job.deadlineUnit === 'days' ? 'day' : 'hour') +
+        ' window (' + hoursPerDay + ' working hours/day' + (hoursPerDay === cap.rushHoursPerDay ? ', already assuming a sprint' : '') + ').';
+    }
+
+    return {
+      score: score,
+      capacityHours: capacityHours,
+      deadlineRatio: deadlineRatio,
+      deadlineSeverity: deadlineSeverity,
+      volumeSeverity: volumeSeverity,
+      hoursPerDay: hoursPerDay,
+      level: severityLevel(deadlineSeverity),
+      explain: explain
+    };
+  }
+
+  /* ========================================================================
+     AXIS 3 — COMPLEXITY (0-100, higher is worse)
+     Technical difficulty and material density only. Time cost already lives
+     in the workload estimate; this axis captures the extra chance of the job
+     going sideways on craft grounds.
+     ==================================================================== */
+  function computeComplexity(job) {
+    var c = CALIBRATION.complexity;
+    var points = 0;
+    var drivers = [];
+    Object.keys(c.points).forEach(function (key) {
+      if (job[key]) { points += c.points[key]; drivers.push(key); }
+    });
+    var footagePerFinalMinute = job.finalMinutes > 0 ? (job.footageHours * 60) / job.finalMinutes : 0;
+    var densityPoints = interpolate(c.footageRatioCurve, footagePerFinalMinute);
+    var runtimePoints = interpolate(c.runtimeCurve, job.finalMinutes);
+    var score = clamp(points + densityPoints + runtimePoints, 0, 100);
+
+    var explain = drivers.length
+      ? drivers.length + ' skill area(s) requested' + (footagePerFinalMinute >= 12 ? ', on a high footage-to-final ratio (' + Math.round(footagePerFinalMinute) + ':1)' : '') + '.'
+      : 'Straightforward technical scope.';
+    return { score: score, drivers: drivers, footageRatio: footagePerFinalMinute, level: severityLevel(score), explain: explain };
+  }
+
+  /* ========================================================================
+     AXIS 4 — RISK (0-100, higher is worse)
+     Weighted severities. Deadline and complexity are excluded on purpose:
+     they own their own axes. Every factor still gets displayed, tagged with
+     the axis it feeds, so the risk panel stays complete for the user.
+     ==================================================================== */
+  function countScopeClarityIssues(job, workload) {
+    var issues = [];
+    var flags = job.flags || [];
+    if (flags.indexOf('open-ended-scope') !== -1 || flags.indexOf('undefined-scope') !== -1) issues.push('the brief leaves scope open-ended');
+    if (flags.indexOf('minimised-scope') !== -1) issues.push('the job is described as "quick" or "simple", which usually understates it');
+    if (flags.indexOf('future-work-leverage') !== -1) issues.push('future work is dangled instead of budget');
+    if (flags.indexOf('hype') !== -1) issues.push('the pitch leans on how well the video will do');
+    if (flags.indexOf('deadline-assumed') !== -1 || flags.indexOf('approvers-assumed') !== -1) issues.push('key details had to be assumed rather than stated');
+    if (job.sourceFiles) issues.push('source-file handoff is expected');
+    if (job.footageHours > 0 && job.finalMinutes > 0 && (job.footageHours * 60) / job.finalMinutes > 25) issues.push('a very large amount of footage for the final length');
+    if (job.deadlineValue <= 0) issues.push('no deadline was stated');
+    return issues;
+  }
+
+  function computeRisk(job, workload, pressure, complexity) {
+    var w = CALIBRATION.risk.weights;
+    var curves = CALIBRATION.risk.curves;
+    var unlimited = (job.flags || []).indexOf('unlimited-revisions') !== -1;
+    var scopeIssues = countScopeClarityIssues(job, workload);
+
+    var factors = {
+      revisions: {
+        label: 'Revision burden',
+        axis: 'risk',
+        severity: clamp(interpolate(curves.revisions, job.revisionRounds) + (unlimited ? 10 : 0), 0, 100),
+        explain: (unlimited ? 'Unlimited revisions, modelled as ' + CALIBRATION.workload.revisions.unlimitedAssumedRounds + ' rounds. '
+          : round1(job.revisionRounds) + ' revision round(s). ') + 'Later rounds cost more than early ones and are where unpaid time accumulates.'
+      },
+      approval: {
+        label: 'Approval chain',
+        axis: 'risk',
+        severity: clamp(interpolate(curves.approval, job.approversCount), 0, 100),
+        explain: job.approversCount + ' approver(s). Each extra decision-maker adds conflicting feedback and slower sign-off.'
+      },
+      deliverables: {
+        label: 'Deliverable load',
+        axis: 'risk',
+        severity: clamp(interpolate(curves.deliverables, workload.totalDeliverables), 0, 100),
+        explain: workload.totalDeliverables + ' deliverable(s) to version, export and track separately.'
+      },
+      hiddenShare: {
+        label: 'Unpaid / hidden work share',
+        axis: 'risk',
+        severity: clamp(interpolate(curves.hiddenShare, workload.unpaidShare), 0, 100),
+        explain: pct(workload.unpaidShare * 100) + '% of the estimated time is admin, exports and waiting rather than editing \u2014 work clients rarely picture when they set a price.'
+      },
+      scopeClarity: {
+        label: 'Scope clarity',
+        axis: 'risk',
+        severity: clamp(interpolate(curves.scopeClarity, scopeIssues.length), 0, 100),
+        explain: scopeIssues.length
+          ? 'Vague or missing definition: ' + scopeIssues.slice(0, 3).join('; ') + '.'
+          : 'The brief is specific enough to price confidently.'
+      }
+    };
+
+    var score = 0;
+    Object.keys(factors).forEach(function (key) {
+      factors[key].weight = w[key];
+      factors[key].level = severityLevel(factors[key].severity);
+      factors[key].contribution = factors[key].severity * w[key] / 100;
+      score += factors[key].contribution;
+    });
+
+    // Displayed alongside the weighted factors, but scored on their own axes.
+    var display = {
+      deadline: {
+        label: 'Deadline pressure', axis: 'pressure', weight: 0,
+        severity: pressure.deadlineSeverity, level: severityLevel(pressure.deadlineSeverity),
+        explain: pressure.explain
+      },
+      complexity: {
+        label: 'Technical complexity', axis: 'complexity', weight: 0,
+        severity: complexity.score, level: complexity.level, explain: complexity.explain
+      }
+    };
+
+    return { score: clamp(score, 0, 100), factors: factors, display: display, scopeIssues: scopeIssues };
+  }
+
+  /* ========================================================================
+     HARD REJECTS — automatic failure. Each rule answers "would an experienced
+     editor walk away without doing arithmetic?".
+     ==================================================================== */
+  function checkHardRejects(job, workload, fin, risk, pressure) {
+    var hr = CALIBRATION.hardReject;
+    var hits = [];
+    var ratio = fin.profitabilityRatio;
+
+    // 1. Unpaid work dressed up as an opportunity.
+    if (workload.totalHours >= hr.unpaidWorkMinimumHours &&
+        (job.price <= 0 || (job.flags || []).indexOf('unpaid') !== -1 || (job.flags || []).indexOf('unpaid-test') !== -1)) {
+      hits.push({
+        id: 'unpaid',
+        title: 'No real payment attached',
+        detail: 'This is roughly ' + round1(workload.totalHours) + 'h of work with no stated fee (or payment offered in exposure, credit or revenue share). Exposure does not pay a rent.'
+      });
+    }
+
+    // 2. Severe underpricing — not a negotiation, a different job.
+    if (ratio != null && ratio < hr.severeUnderpriceRatio && job.price > 0) {
+      hits.push({
+        id: 'severe-underprice',
+        title: 'Pay is a fraction of your rate',
+        detail: 'The effective rate works out at ' + fmtRate(fin.effectiveRate, job.currency) + ' \u2014 ' + pct(ratio * 100) +
+          '% of your ' + fmtRate(job.targetRate, job.currency) + ' target. Closing that gap means more than doubling the price, which is a new offer rather than a negotiation.'
+      });
+    }
+
+    // 3. Physically impossible deadline.
+    if (pressure.deadlineRatio != null && pressure.deadlineRatio >= hr.impossibleDeadlineRatio) {
+      hits.push({
+        id: 'impossible-deadline',
+        title: 'The deadline cannot be met',
+        detail: 'The work needs about ' + round1(workload.totalHours) + 'h but the window realistically holds ' + round1(pressure.capacityHours) +
+          'h \u2014 ' + (Math.round(pressure.deadlineRatio * 10) / 10) + '\u00d7 more work than time. Accepting this means missing it or shipping something you would not sign.'
+      });
+    }
+
+    // 4. Revision abuse on a badly paid job.
+    if (job.revisionRounds >= hr.revisionAbuseRounds && ratio != null && ratio < hr.revisionAbuseRatio) {
+      hits.push({
+        id: 'revision-abuse',
+        title: 'Heavy revisions on weak pay',
+        detail: round1(job.revisionRounds) + ' revision round(s) at ' + pct(ratio * 100) + '% of your target rate. Open-ended iteration is only affordable when the base price has margin in it.'
+      });
+    }
+
+    // 5. A stack of serious risks on a job that does not pay for them.
+    if (risk.score >= hr.riskStackScore && ratio != null && ratio < hr.riskStackRatio) {
+      hits.push({
+        id: 'risk-stack',
+        title: 'Severe risks with no premium',
+        detail: 'Weighted risk scores ' + Math.round(risk.score) + '/100 while the pay sits at ' + pct(ratio * 100) +
+          '% of target. Difficult clients are workable at a premium; this has the difficulty without the premium.'
+      });
+    }
+
+    return hits;
+  }
+
+  /* ========================================================================
+     GATES — ceilings. A gate never raises a score, it only stops one strong
+     axis from masking a disqualifying weakness in another.
+     ==================================================================== */
+  function applyGates(rawScore, job, fin, risk, pressure) {
+    var t = CALIBRATION.gateThresholds;
+    var ratio = fin.profitabilityRatio;
+    var applied = [];
+    var score = rawScore;
+
+    function gate(id, condition) {
+      if (!condition) return;
+      var def = null;
+      for (var i = 0; i < CALIBRATION.gates.length; i++) if (CALIBRATION.gates[i].id === id) def = CALIBRATION.gates[i];
+      if (!def || score <= def.cap) { if (def && rawScore > def.cap) applied.push(def); return; }
+      score = def.cap;
+      applied.push(def);
+    }
+
+    gate('no-rate', ratio == null);
+    gate('pay-severe', ratio != null && ratio < t.paySevereBelowRatio);
+    gate('pay-below', ratio != null && ratio < t.payBelowRatio);
+    gate('pay-marginal', ratio != null && ratio < t.payMarginalRatio);
+    gate('schedule-break', pressure.deadlineRatio != null && pressure.deadlineRatio >= t.scheduleBreakDeadlineRatio);
+    gate('risk-stack', risk.score >= t.riskStackScore);
+
+    return { score: score, applied: applied };
+  }
+
+  function bandFor(score) {
+    var bands = CALIBRATION.scoring.bands;
+    for (var i = 0; i < bands.length; i++) if (score >= bands[i].min) return bands[i];
+    return bands[bands.length - 1];
+  }
+
+  /* ========================================================================
+     EXPLAINABILITY — the reasons are derived from the arithmetic, not written
+     to match it. Each axis reports the points it cost against a perfect 100,
+     and the biggest losses become the headline reasons.
+     ==================================================================== */
+  function buildReasons(job, workload, fin, scores, risk, pressure, complexity, gates, hardRejects) {
+    var reasons = [];
+    var w = CALIBRATION.scoring.weights;
+
+    if (hardRejects.length) {
+      hardRejects.forEach(function (h) { reasons.push({ kind: 'blocker', weight: 1000, text: h.title + ' \u2014 ' + h.detail }); });
+    }
+
+    // Profitability
+    var ratio = fin.profitabilityRatio;
+    var profLoss = (100 - scores.profitability) * w.profitability;
+    if (ratio == null) {
+      reasons.push({ kind: 'negative', weight: profLoss, text: 'No target hourly rate is set, so the money side cannot be judged. Add your rate for a real verdict.' });
+    } else if (ratio < 0.98) {
+      reasons.push({
+        kind: 'negative', weight: profLoss,
+        text: 'Effective rate is ' + fmtRate(fin.effectiveRate, job.currency) + ', ' + pct(ratio * 100) + '% of your ' +
+          fmtRate(job.targetRate, job.currency) + ' target \u2014 about ' + fmtCurrency(Math.abs(fin.difference), job.currency) + ' short of what this scope is worth to you.'
+      });
+    } else {
+      reasons.push({
+        kind: 'positive', weight: (scores.profitability - 50) * w.profitability,
+        text: 'The money works: ' + fmtRate(fin.effectiveRate, job.currency) + ' effective against a ' + fmtRate(job.targetRate, job.currency) +
+          ' target' + (fin.difference > 0 ? ', ' + fmtCurrency(fin.difference, job.currency) + ' above your minimum' : '') + '.'
+      });
+    }
+
+    // Pressure
+    var pressLoss = pressure.score * w.pressure;
+    if (pressure.deadlineRatio != null && pressure.deadlineRatio > 0.85) {
+      reasons.push({
+        kind: 'negative', weight: pressLoss,
+        text: 'Deadline pressure is ' + (pressure.deadlineRatio >= 1.2 ? 'severe' : 'significant') + ': ' + round1(workload.totalHours) +
+          'h of work against ~' + round1(pressure.capacityHours) + 'h of realistic capacity before it is due.'
+      });
+    } else if (pressure.deadlineRatio == null) {
+      reasons.push({ kind: 'negative', weight: pressLoss * 0.6, text: 'No deadline is stated, which is where surprise rush work usually comes from.' });
+    } else if (pressure.score < 30) {
+      reasons.push({ kind: 'positive', weight: (100 - pressure.score) * w.pressure * 0.5, text: 'The schedule is comfortable for the size of the job.' });
+    }
+
+    // Risk factors, biggest contributor first
+    Object.keys(risk.factors).forEach(function (key) {
+      var fac = risk.factors[key];
+      if (fac.severity >= 40) {
+        reasons.push({ kind: 'negative', weight: fac.contribution * w.risk, text: fac.label + ' is ' + fac.level + ': ' + fac.explain });
+      }
+    });
+    if (risk.score < 25) {
+      reasons.push({ kind: 'positive', weight: (100 - risk.score) * w.risk * 0.5, text: 'Revisions, approvals and scope are all tightly defined \u2014 little room for this to expand after you say yes.' });
+    }
+
+    // Complexity
+    if (complexity.score >= 50) {
+      reasons.push({
+        kind: 'negative', weight: complexity.score * w.complexity,
+        text: 'Technical complexity is high (' + complexity.drivers.length + ' skill areas' +
+          (complexity.footageRatio >= 12 ? ', ' + Math.round(complexity.footageRatio) + ':1 footage ratio' : '') + '), which makes the hour estimate itself less certain.'
+      });
+    }
+
+    // Gate explanations are decisive, so they rank just under blockers.
+    gates.applied.forEach(function (g) {
+      reasons.push({ kind: 'cap', weight: 500, text: g.label + ' \u2014 this alone caps the verdict at ' + bandFor(g.cap).verdict + ' however good the rest looks.' });
+    });
+
+    reasons.sort(function (a, b) { return b.weight - a.weight; });
+    return reasons;
+  }
+
+  /* ========================================================================
+     VERDICT — the one function the UI and the tests both call.
+     ==================================================================== */
+  function evaluateJob(rawJob) {
+    var job = normalizeJob(rawJob);
+    var workload = computeWorkload(job);
+    var fin = computeFinancials(job, workload);
+    var pressure = computePressure(job, workload);
+    var complexity = computeComplexity(job);
+    var risk = computeRisk(job, workload, pressure, complexity);
+    var prof = computeProfitabilityScore(fin);
+
+    var scores = {
+      profitability: prof.score,
+      risk: risk.score,
+      pressure: pressure.score,
+      complexity: complexity.score
+    };
+
+    var w = CALIBRATION.scoring.weights;
+    var rawScore = clamp(
+      w.profitability * scores.profitability +
+      w.risk * (100 - scores.risk) +
+      w.pressure * (100 - scores.pressure) +
+      w.complexity * (100 - scores.complexity), 0, 100);
+
+    var hardRejects = checkHardRejects(job, workload, fin, risk, pressure);
+    var gates = applyGates(rawScore, job, fin, risk, pressure);
+    var finalScore = hardRejects.length ? Math.min(gates.score, 20) : gates.score;
+    var band = hardRejects.length
+      ? { min: 0, verdict: 'Reject', level: 'high' }
+      : bandFor(finalScore);
+
+    var reasons = buildReasons(job, workload, fin, scores, risk, pressure, complexity, gates, hardRejects);
+    var confidence = inputConfidence(job);
+
+    return {
+      job: job,
+      workload: workload,
+      fin: fin,
+      pressure: pressure,
+      complexity: complexity,
+      risk: risk,
+      scores: scores,
+      rawScore: rawScore,
+      finalScore: finalScore,
+      score: Math.round(finalScore),
+      verdict: band.verdict,
+      level: band.level,
+      hardRejects: hardRejects,
+      gates: gates.applied,
+      reasons: reasons,
+      confidence: confidence,
+      summary: verdictSummary(band.verdict, job, workload, fin, hardRejects)
+    };
+  }
+
+  function verdictSummary(verdict, job, workload, fin, hardRejects) {
+    var hours = round1(workload.totalHours);
+    if (hardRejects.length) {
+      return 'This one fails on its own terms, not on a close call: ' + hardRejects[0].title.toLowerCase() + '. Walking away costs you nothing here.';
+    }
+    switch (verdict) {
+      case 'Strong Accept':
+        return 'The pay clears your rate with margin and nothing in the scope, schedule or approval chain is working against you. Take it.';
+      case 'Accept':
+        return 'About ' + hours + 'h of work at ' + fmtRate(fin.effectiveRate, job.currency) + '. The economics hold up and the risks are manageable \u2014 worth taking, with the smaller points below worth a sentence in your reply.';
+      case 'Negotiate':
+        return 'This is a real job with a fixable problem. At ' + hours + 'h it pays ' + fmtRate(fin.effectiveRate, job.currency) +
+          (fin.difference < 0 ? ', about ' + fmtCurrency(Math.abs(fin.difference), job.currency) + ' under what the scope is worth to you' : '') +
+          '. Move the price, the scope or the deadline before you commit.';
+      case 'High Risk':
+        return 'The numbers only work if everything goes right, and the risks below say it probably will not. Take it only with the terms changed \u2014 or if you have a specific reason to want this client.';
+      default:
+        return 'On the information given, this job is not worth your time at the terms offered.';
+    }
+  }
+
+  /* ========================================================================
+     NEGOTIATION LEVERS — ordered by how much score each would recover.
+     ==================================================================== */
+  function buildNegotiation(result) {
+    var job = result.job, fin = result.fin, risk = result.risk, workload = result.workload;
+    var items = [];
+
+    if (fin.profitabilityRatio != null && fin.difference < -0.01) {
+      items.push({ weight: (1 - fin.profitabilityRatio) * 100,
+        text: 'Ask for ' + fmtCurrency(fin.minimumPrice, job.currency) + ' (up from ' + fmtCurrency(job.price, job.currency) + ') \u2014 that is what this scope is worth at your rate.' });
+    }
+    if (result.pressure.deadlineRatio != null && result.pressure.deadlineRatio > 0.85) {
+      var needDays = Math.ceil((workload.totalHours / CALIBRATION.capacity.assumedHoursPerDay));
+      items.push({ weight: result.pressure.deadlineSeverity,
+        text: 'Ask for about ' + needDays + ' working day(s) instead \u2014 that is the point where the schedule stops being the main risk.' });
+    }
+    if (risk.factors.revisions.severity >= 35) {
+      items.push({ weight: risk.factors.revisions.severity,
+        text: 'Cap revisions at ' + (job.revisionRounds >= 3 ? '2 rounds' : '1 round') + ' and write down what counts as a revision versus new scope.' });
+    }
+    if (risk.factors.deliverables.severity >= 35) {
+      items.push({ weight: risk.factors.deliverables.severity,
+        text: 'Trim the deliverables (currently ' + workload.totalDeliverables + ') or price the extra Shorts as a separate line item.' });
+    }
+    if (risk.factors.approval.severity >= 35) {
+      items.push({ weight: risk.factors.approval.severity,
+        text: 'Insist on one point of contact who consolidates all ' + job.approversCount + ' approvers\u2019 feedback into a single list per round.' });
+    }
+    if (risk.factors.scopeClarity.severity >= 35) {
+      items.push({ weight: risk.factors.scopeClarity.severity,
+        text: 'Pin the brief down in writing before starting: ' + risk.scopeIssues.slice(0, 2).join('; ') + '.' });
+    }
+    if (job.sourceFiles) {
+      items.push({ weight: 30, text: 'Charge separately for the project-file handoff, or drop it \u2014 packaging and delivering source files is real unpaid time.' });
+    }
+    if (result.complexity.score >= 55) {
+      items.push({ weight: result.complexity.score * 0.6,
+        text: 'Lock the look for graphics/colour/audio with a reference before the edit, so "make it pop" does not become a third pass.' });
+    }
+    items.sort(function (a, b) { return b.weight - a.weight; });
+    if (!items.length) items.push({ weight: 0, text: 'Nothing major needs changing. If you want breathing room, ask for a small deadline buffer and confirm the revision limit in writing.' });
+    return items.map(function (i) { return i.text; });
+  }
+
+  /* ========================================================================
+     CLIENT MESSAGE
+     ==================================================================== */
+  function buildClientMessage(result) {
+    var job = result.job, fin = result.fin, workload = result.workload;
+    var hours = round1(workload.totalHours);
+    var lines = [];
+
+    if (result.verdict === 'Strong Accept' || result.verdict === 'Accept') {
+      lines.push('Thanks for the details \u2014 I\u2019d be glad to take this on. The scope and turnaround work on my end.');
+      if (job.revisionRounds > 0) lines.push('Just to confirm what we agreed: ' + round1(job.revisionRounds) + ' round(s) of revisions included, with anything beyond that quoted separately.');
+    } else if (result.verdict === 'Negotiate' || result.verdict === 'High Risk') {
+      lines.push('Thanks for the details \u2014 this looks like a project I\u2019d enjoy. Having mapped it out, it comes to roughly ' + hours + ' hours once the edit, revisions, exports and back-and-forth are counted.');
+      if (fin.difference < -0.01) {
+        lines.push('For that scope my price would be ' + fmtCurrency(fin.minimumPrice, job.currency) + '. If you\u2019d rather stay near ' + fmtCurrency(job.price, job.currency) + ', I can make that work by ' +
+          (workload.totalDeliverables > 2 ? 'reducing the number of deliverables' : 'trimming the revision rounds') + ' \u2014 happy either way, just let me know which you prefer.');
+      } else {
+        lines.push('Before I start, I\u2019d like to confirm a couple of things so we both know where the edges are: ' + (result.reasons[0] ? 'mainly the ' + result.reasons[0].text.split(' ').slice(0, 6).join(' ').toLowerCase().replace(/[.,]$/, '') + '.' : 'the revision limit and the deadline.'));
+      }
+    } else {
+      lines.push('Thanks for thinking of me. Having looked at the scope, this one isn\u2019t a fit for me at the terms described \u2014 it works out to around ' + hours + ' hours of work, which I can\u2019t deliver well at that budget and timeline.');
+      lines.push('If the budget or the deadline has room to move, I\u2019d be glad to take another look. Either way, good luck with the project.');
+    }
+    return lines.join('\n\n');
+  }
+
+  /* ========================================================================
+     ASSUMPTIONS SHOWN TO THE USER — generated from CALIBRATION so they can
+     never drift out of sync with the numbers actually used.
+     ==================================================================== */
+  function buildAssumptions() {
+    var c = CALIBRATION;
+    var w = c.scoring.weights;
+    return [
+      'Every job starts with ' + c.workload.editing.projectBaseHours + 'h of project setup; a long-form video starts at ' + c.workload.editing.longFormBaseHours + 'h plus ' + c.workload.editing.perExtraMinute + 'h per minute beyond 5.',
+      'Raw footage costs about ' + c.workload.editing.footageReviewPerHour + 'h of review per hour supplied, charged once per project rather than once per deliverable.',
+      'Shorts are incremental: ' + c.workload.editing.shortFirstHours + 'h for the first, ' + c.workload.editing.shortAdditionalHours + 'h each after, since they reuse reviewed footage and an established look.',
+      'Revision rounds get more expensive as they go (+' + Math.round(c.workload.revisions.escalationPerRound * 100) + '% per round), and "unlimited" is modelled as ' + c.workload.revisions.unlimitedAssumedRounds + ' rounds.',
+      'A working day holds about ' + c.capacity.assumedHoursPerDay + 'h of real editing, rising to ' + c.capacity.rushHoursPerDay + 'h for sprints under ' + c.capacity.rushThresholdHours + 'h. This single number drives every deadline verdict.',
+      'The verdict weighs profitability ' + Math.round(w.profitability * 100) + '%, risk ' + Math.round(w.risk * 100) + '%, schedule pressure ' + Math.round(w.pressure * 100) + '% and complexity ' + Math.round(w.complexity * 100) + '%.',
+      'Hitting your target rate exactly scores ' + interpolate(c.profitabilityCurve, 1) + '/100 on the money axis, not 100 \u2014 breaking even on your own rate leaves no margin for the estimate being wrong.',
+      'Some conditions cap the verdict regardless of the rest: pay below ' + Math.round(c.gateThresholds.payBelowRatio * 100) + '% of target, or work exceeding ' + c.gateThresholds.scheduleBreakDeadlineRatio + '\u00d7 the available time.',
+      'These are v' + c.version + ' assumptions calibrated against a reference job and a scenario suite \u2014 a well-reasoned starting point, not an industry standard. Adjust them as your own jobs tell you more.'
+    ];
+  }
+
+/* ==ENGINE_END== */
+
+  /* ========================================================================
+     SAMPLE JOBS
+     ==================================================================== */
+  var SAMPLES = {
+    '1': {
+      text: "Looking for an editor for a 10-minute YouTube video. Raw footage is about 3 hours. Need 3 Shorts from the same footage. Add captions, music, basic graphics and B-roll. Need it within 48 hours. Client allows 1-2 revisions. Budget is $300.",
+      rate: 30
+    },
+    '2': {
+      text: "Need an editor for a 20-minute documentary. Raw footage is provided. Create 5 Shorts from the documentary and provide the editable project file. Need 3 revisions. Include sound cleanup, color grading, captions and animated graphics. There are 2 people approving the final video. Deadline is 5 days. Budget is $450.",
+      rate: 30
+    },
+    '3': {
+      text: "Hi! We need a quick edit of a 12 minute podcast clip, about 2 hours of raw footage. Just captions and titles. Unlimited revisions until we're happy. Our team will review it. Need it ASAP. Budget UGX 500,000 and there's lots more work coming if this goes well.",
+      rate: 110000
+    }
+  };
+
+  /* ========================================================================
+     DOM HELPERS
+     ==================================================================== */
+  var state = { view: 'home', lastResult: null, lastExtraction: null };
+
+  function $(id) { return document.getElementById(id); }
+  function setText(id, val) { var el = $(id); if (el) el.textContent = val; }
+
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+    $('view-' + name).classList.add('active');
+    state.view = name;
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  var FEATURE_INPUT_IDS = {
+    captions: 'chk-captions', basicGraphics: 'chk-basic-graphics',
+    advancedGraphics: 'chk-advanced-graphics', colorGrading: 'chk-color-grading',
+    soundCleanup: 'chk-sound-cleanup', broll: 'chk-broll',
+    music: 'chk-music', sourceFiles: 'chk-source-files'
+  };
+
+  /* ========================================================================
+     FORM <-> JOB OBJECT
+     ==================================================================== */
+  function readFields() {
+    var job = {
+      currency: $('currency-select').value,
+      targetRate: $('rate-input').value,
+      price: $('price-input').value,
+      longformCount: $('longform-count').value,
+      finalMinutes: $('final-minutes').value,
+      shortsCount: $('shorts-count').value,
+      footageHours: $('footage-hours').value,
+      approversCount: $('approvers-count').value,
+      deadlineValue: $('deadline-value').value,
+      deadlineUnit: $('deadline-unit').value,
+      revisionRounds: $('revision-rounds').value,
+      flags: (state.lastExtraction && state.lastExtraction.flags) || []
+    };
+    Object.keys(FEATURE_INPUT_IDS).forEach(function (key) { job[key] = $(FEATURE_INPUT_IDS[key]).checked; });
+    return job;
+  }
+
+  // Everything a job description can populate. Re-extracting starts every
+  // one of these back at its neutral default, so a value from a previous
+  // paste can never masquerade as a fact about the new text: a field the
+  // new description doesn't mention comes back as "unknown" (the form's
+  // own default), not whatever a different job happened to set it to.
+  function resetExtractableFields() {
+    $('price-input').value = '';
+    $('footage-hours').value = '';
+    $('final-minutes').value = '';
+    $('shorts-count').value = 0;
+    $('longform-count').value = 1;
+    $('deadline-value').value = '';
+    $('deadline-unit').value = 'hours';
+    $('revision-rounds').value = 1;
+    $('approvers-count').value = 1;
+    Object.keys(FEATURE_INPUT_IDS).forEach(function (key) { $(FEATURE_INPUT_IDS[key]).checked = false; });
+    syncToggleChipStyles();
+  }
+
+  function applyExtractedFields(found) {
+    if (found.price != null) $('price-input').value = Math.round(found.price * 100) / 100;
+    if (found.footageHours != null) $('footage-hours').value = found.footageHours;
+    if (found.finalMinutes != null) $('final-minutes').value = found.finalMinutes;
+    if (found.shortsCount != null) $('shorts-count').value = found.shortsCount;
+    if (found.longformCount != null) $('longform-count').value = found.longformCount;
+    if (found.deadlineValue != null) $('deadline-value').value = found.deadlineValue;
+    if (found.deadlineUnit != null) $('deadline-unit').value = found.deadlineUnit;
+    if (found.revisionRounds != null) $('revision-rounds').value = found.revisionRounds;
+    if (found.approversCount != null) $('approvers-count').value = found.approversCount;
+    Object.keys(FEATURE_INPUT_IDS).forEach(function (key) {
+      if (found[key]) $(FEATURE_INPUT_IDS[key]).checked = true;
+    });
+    syncToggleChipStyles();
+  }
+
+  // Renders the extraction summary as two separate lists — facts the client
+  // actually stated, and assumptions the parser had to make — so an
+  // assumption can never be mistaken for something the description said.
+  function renderExtractionSummary(result, currencyNote) {
+    var found = result.found, status = result.status || {};
+    var curCode = $('currency-select').value;
+    var badge = '<span class="conf-badge conf-' + result.confidence.band.toLowerCase() + '">' + result.confidence.band + ' confidence</span>';
+
+    function fmtField(key) {
+      switch (key) {
+        case 'price':
+          return 'Budget: ' + fmtCurrency(found.price, curCode) + (found.priceIsRecurring ? ' per ' + found.pricePeriod : '');
+        case 'finalMinutes': return 'Runtime: ' + found.finalMinutes + ' min';
+        case 'footageHours': return 'Raw footage: ' + found.footageHours + 'h';
+        case 'shortsCount': return 'Shorts / reels: ' + found.shortsCount;
+        case 'longformCount': return 'Long-form videos: ' + found.longformCount;
+        case 'deadlineValue': return 'Deadline: ' + found.deadlineValue + ' ' + (found.deadlineUnit || '');
+        case 'revisionRounds':
+          return (result.flags.indexOf('unlimited-revisions') !== -1)
+            ? 'Revisions: unlimited \u2192 modeled as ' + found.revisionRounds + ' round(s)'
+            : 'Revisions: ' + found.revisionRounds + ' round(s)';
+        case 'approversCount': return 'Approvers: ' + found.approversCount;
+        default: return (MISSING_FIELD_LABEL[key] || key) + ': required';
+      }
+    }
+
+    var facts = [], assumptions = [];
+    Object.keys(status).forEach(function (key) {
+      var line = fmtField(key);
+      if (status[key] === 'assumed') assumptions.push(line);
+      else if (status[key] === 'inferred') assumptions.push(line);
+      else facts.push(line);
+    });
+
+    var html = badge;
+    html += '<div style="margin-top:8px;"><strong>Extracted facts</strong><br>' +
+      (facts.length ? facts.map(function (f) { return '\u2713 ' + f; }).join('<br>') : 'None found in this text \u2014 fill in the fields below.') + '</div>';
+    if (assumptions.length) {
+      html += '<div style="margin-top:8px;"><strong>Assumptions to check</strong><br>' +
+        assumptions.map(function (a) { return '\u26a0 ' + a; }).join('<br>') + '</div>';
+    }
+    if (result.confidence.missing.length) {
+      html += '<div style="margin-top:8px;color:var(--ink-muted);">Not mentioned: ' +
+        result.confidence.missing.map(function (k) { return MISSING_FIELD_LABEL[k] || k; }).join(', ') + '.</div>';
+    }
+    if (currencyNote) html += '<div style="margin-top:8px;">' + currencyNote.trim() + '</div>';
+    html += '<div style="margin-top:8px;color:var(--ink-muted);">Review every field below before analysing \u2014 the verdict is only as good as these numbers.</div>';
+    return html;
+  }
+
+  function syncToggleChipStyles() {
+    document.querySelectorAll('.toggle-chip').forEach(function (chip) {
+      chip.classList.toggle('checked', chip.querySelector('input').checked);
+    });
+  }
+
+  function updateRateSuffix() {
+    var meta = currencyMeta($('currency-select').value);
+    setText('rate-suffix', meta.symbol.trim() + ' per hour');
+  }
+
+  /* ========================================================================
+     EXTRACTION FLOW
+     ==================================================================== */
+  function runExtraction() {
+    var text = $('job-desc').value.trim();
+    var summaryEl = $('extract-summary');
+    if (!text) { summaryEl.hidden = true; return; }
+
+    var result = parseJobDescription(text);
+    state.lastExtraction = result;
+
+    // Currency switch: change the selector, and advise on the target rate
+    // rather than silently converting it.
+    var currencyNote = '';
+    var previousCurrency = $('currency-select').value;
+    if (result.currency && CURRENCIES[result.currency] && result.currency !== previousCurrency) {
+      $('currency-select').value = result.currency;
+      updateRateSuffix();
+      var converted = convertAmount(parseFloat($('rate-input').value) || 0, previousCurrency, result.currency);
+      currencyNote = ' This job is priced in ' + result.currency + ', so the currency was switched. Your target rate is now read as ' +
+        result.currency + (converted ? ' \u2014 roughly ' + fmtCurrency(converted, result.currency) + '/hr would match your old ' + previousCurrency + ' rate, but set it yourself.' : '.');
+    }
+
+    resetExtractableFields();
+    applyExtractedFields(result.found);
+
+    summaryEl.hidden = false;
+    summaryEl.innerHTML = renderExtractionSummary(result, currencyNote);
+  }
+
+  /* ========================================================================
+     RENDER — RESULTS
+     ==================================================================== */
+  function renderResults(result) {
+    var job = result.job, workload = result.workload, fin = result.fin;
+
+    var hero = $('decision-hero');
+    hero.className = 'decision-hero level-' + result.level;
+    setText('decision-badge', result.verdict);
+    setText('decision-score', result.score + '/100');
+    setText('decision-reason', result.summary);
+
+    // Confidence chip on the verdict itself
+    var confEl = $('decision-confidence');
+    confEl.className = 'conf-badge conf-' + result.confidence.band.toLowerCase();
+    confEl.textContent = result.confidence.band + ' confidence';
+    setText('decision-confidence-note', result.confidence.missingLabels.length
+      ? 'Missing: ' + result.confidence.missingLabels.join(', ') + '. Filling these in will sharpen the verdict.'
+      : 'All the inputs that matter are filled in.');
+
+    // Top reasons
+    var reasonsEl = $('verdict-reasons');
+    reasonsEl.innerHTML = '';
+    result.reasons.slice(0, 5).forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = 'reason reason-' + r.kind;
+      li.textContent = r.text;
+      reasonsEl.appendChild(li);
+    });
+
+    // Score breakdown bars
+    var axes = [
+      { key: 'profitability', label: 'Profitability', good: result.scores.profitability, weight: CALIBRATION.scoring.weights.profitability },
+      { key: 'risk', label: 'Risk (inverted)', good: 100 - result.scores.risk, weight: CALIBRATION.scoring.weights.risk },
+      { key: 'pressure', label: 'Schedule headroom', good: 100 - result.scores.pressure, weight: CALIBRATION.scoring.weights.pressure },
+      { key: 'complexity', label: 'Simplicity', good: 100 - result.scores.complexity, weight: CALIBRATION.scoring.weights.complexity }
+    ];
+    var breakdownEl = $('score-breakdown');
+    breakdownEl.innerHTML = '';
+    axes.forEach(function (a) {
+      var row = document.createElement('div');
+      row.className = 'score-row';
+      var v = Math.round(a.good);
+      row.innerHTML = '<div class="score-row-top"><span>' + a.label + ' <span class="score-weight">' + Math.round(a.weight * 100) + '% of verdict</span></span>' +
+        '<span class="score-value">' + v + '</span></div>' +
+        '<div class="score-bar"><div class="score-bar-fill ' + (v >= 70 ? 'good' : v >= 45 ? 'mid' : 'bad') + '" style="width:' + v + '%"></div></div>';
+      breakdownEl.appendChild(row);
+    });
+
+    // Caps / hard rejects
+    var capsEl = $('score-caps');
+    var capLines = result.hardRejects.map(function (h) { return 'Automatic reject \u2014 ' + h.title + ': ' + h.detail; })
+      .concat(result.gates.map(function (g) { return 'Capped at ' + bandFor(g.cap).verdict + ' \u2014 ' + g.label + '.'; }));
+    capsEl.innerHTML = '';
+    capsEl.hidden = capLines.length === 0;
+    capLines.forEach(function (line) {
+      var li = document.createElement('li'); li.textContent = line; capsEl.appendChild(li);
+    });
+
+    // Timeline
+    [
+      { id: 'res-seg-editing', val: workload.editingHours },
+      { id: 'res-seg-revisions', val: workload.revisionHours },
+      { id: 'res-seg-communication', val: workload.communicationHours },
+      { id: 'res-seg-hidden', val: workload.hiddenHours }
+    ].forEach(function (s) {
+      var share = workload.totalHours > 0 ? (s.val / workload.totalHours * 100) : 0;
+      var el = $(s.id);
+      el.style.width = '0%';
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { el.style.width = share + '%'; });
+      });
+    });
+
+    setText('wl-editing', fmtHours(workload.editingHours));
+    setText('wl-revisions', fmtHours(workload.revisionHours));
+    setText('wl-communication', fmtHours(workload.communicationHours));
+    setText('wl-hidden', fmtHours(workload.hiddenHours));
+    setText('wl-total', fmtHours(workload.totalHours));
+
+    fillList('workload-why', workload.why);
+
+    setText('fin-offer', fmtCurrency(job.price, job.currency));
+    setText('fin-hours', fmtHours(workload.totalHours));
+    setText('fin-rate', fmtRate(fin.effectiveRate, job.currency));
+    setText('fin-min', job.targetRate > 0 ? fmtCurrency(fin.minimumPrice, job.currency) : 'set your rate');
+
+    fillList('ask-list', buildAskList(job));
+
+    // Risk grid — scored factors first, then the two displayed on other axes.
+    var riskEl = $('risk-grid');
+    riskEl.innerHTML = '';
+    var rows = [];
+    Object.keys(result.risk.factors).forEach(function (k) { rows.push(result.risk.factors[k]); });
+    Object.keys(result.risk.display).forEach(function (k) { rows.push(result.risk.display[k]); });
+    rows.sort(function (a, b) { return b.severity - a.severity; });
+    rows.forEach(function (r) {
+      var row = document.createElement('div');
+      row.className = 'risk-row';
+      var axisNote = r.weight > 0
+        ? r.weight + '% of the risk score'
+        : (r.axis === 'pressure' ? 'scored under schedule pressure' : 'scored under complexity');
+      row.innerHTML =
+        '<div class="risk-row-top"><span class="risk-name">' + r.label + '</span>' +
+        '<span class="risk-badge ' + r.level + '">' + LEVEL_LABEL[r.level] + ' \u00b7 ' + Math.round(r.severity) + '</span></div>' +
+        '<div class="risk-explain">' + r.explain + '</div>' +
+        '<div class="risk-axis">' + axisNote + '</div>';
+      riskEl.appendChild(row);
+    });
+
+    fillList('negotiate-list', buildNegotiation(result));
+    $('negotiation-panel').style.display = (result.verdict === 'Strong Accept') ? 'none' : 'block';
+
+    $('client-message').value = buildClientMessage(result);
+    fillList('assumptions', buildAssumptions());
+  }
+
+  function fillList(id, lines) {
+    var el = $(id);
+    el.innerHTML = '';
+    lines.forEach(function (line) {
+      var li = document.createElement('li');
+      li.textContent = line;
+      el.appendChild(li);
+    });
+  }
+
+  function buildAskList(job) {
+    var items = [];
+    if (job.longformCount > 0) items.push(job.longformCount + ' \u00d7 ' + (job.finalMinutes || '?') + '-minute video' + (job.longformCount > 1 ? 's' : ''));
+    if (job.shortsCount > 0) items.push(job.shortsCount + ' \u00d7 Shorts / Reels');
+    if (job.footageHours > 0) items.push(job.footageHours + ' hours of raw footage');
+    if (job.captions) items.push('Captions');
+    if (job.basicGraphics) items.push('Basic graphics / titles');
+    if (job.advancedGraphics) items.push('Advanced motion graphics');
+    if (job.colorGrading) items.push('Color grading');
+    if (job.soundCleanup) items.push('Sound cleanup');
+    if (job.broll) items.push('B-roll / stock footage');
+    if (job.music) items.push('Music / sound effects');
+    if (job.sourceFiles) items.push('Editable project / source files');
+    items.push(round1(job.revisionRounds) + ' revision round(s)');
+    if (job.deadlineValue > 0) items.push('Deadline: ' + job.deadlineValue + ' ' + job.deadlineUnit);
+    if (job.approversCount > 1) items.push(job.approversCount + ' people approving the final video');
+    return items;
+  }
+
+  /* ========================================================================
+     LOCAL DRAFT (per-viewer convenience; the app works without it)
+     ==================================================================== */
+  var DRAFT_KEY = 'aiVideoJobAnalyzer_draft_v2';
+
+  function saveDraft(job) {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(Object.assign({}, job, { jobDesc: $('job-desc').value })));
+    } catch (e) { /* storage unavailable — ignore */ }
+  }
+  function loadDraft() {
+    try {
+      var raw = localStorage.getItem(DRAFT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+  function clearDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+  }
+  function applyDraftToForm(d) {
+    if (d.jobDesc) $('job-desc').value = d.jobDesc;
+    if (d.currency && CURRENCIES[d.currency]) { $('currency-select').value = d.currency; updateRateSuffix(); }
+    [['price', 'price-input'], ['targetRate', 'rate-input'], ['longformCount', 'longform-count'],
+     ['finalMinutes', 'final-minutes'], ['shortsCount', 'shorts-count'], ['footageHours', 'footage-hours'],
+     ['approversCount', 'approvers-count'], ['deadlineValue', 'deadline-value'],
+     ['deadlineUnit', 'deadline-unit'], ['revisionRounds', 'revision-rounds']].forEach(function (pair) {
+      if (d[pair[0]] != null) $(pair[1]).value = d[pair[0]];
+    });
+    Object.keys(FEATURE_INPUT_IDS).forEach(function (k) { if (d[k]) $(FEATURE_INPUT_IDS[k]).checked = true; });
+    syncToggleChipStyles();
+  }
+
+  /* ========================================================================
+     MAIN ACTIONS
+     ==================================================================== */
+  function runAnalysis() {
+    var result = evaluateJob(readFields());
+    state.lastResult = result;
+    renderResults(result);
+    saveDraft(result.job);
+    showView('results');
+  }
+
+  function loadSample(key) {
+    var sample = SAMPLES[key];
+    if (!sample) return;
+    $('job-desc').value = sample.text;
+    $('rate-input').value = sample.rate;
+    runExtraction();
+  }
+
+  /* ========================================================================
+     DEV DIAGNOSTICS — the scenario suite lives in the repo tests; this is the
+     quick in-browser smoke check. Call window.__jobAnalyzer.selfTest().
+     ==================================================================== */
+  function selfTest() {
+    var reference = {
+      currency: 'USD', targetRate: 30, price: 300,
+      longformCount: 1, finalMinutes: 10, shortsCount: 3, footageHours: 3,
+      approversCount: 1, deadlineValue: 48, deadlineUnit: 'hours', revisionRounds: 1.5,
+      captions: true, basicGraphics: true, broll: true, music: true
+    };
+    var r = evaluateJob(reference);
+    console.log('%cJob Analyzer v' + CALIBRATION.version + ' self-test', 'font-weight:bold');
+    console.log('reference job \u2192 ' + round1(r.workload.totalHours) + 'h, ' + fmtRate(r.fin.effectiveRate, 'USD') +
+      ', score ' + r.score + ' \u2192 ' + r.verdict);
+    console.log('axes:', r.scores);
+    return r;
+  }
+
+  /* ========================================================================
+     EVENT WIRING
+     ==================================================================== */
+  document.addEventListener('DOMContentLoaded', function () {
+    window.__jobAnalyzer = {
+      CALIBRATION: CALIBRATION,
+      evaluateJob: evaluateJob,
+      parseJobDescription: parseJobDescription,
+      selfTest: selfTest
+    };
+
+    document.querySelectorAll('[data-nav]').forEach(function (btn) {
+      btn.addEventListener('click', function () { showView(btn.getAttribute('data-nav')); });
+    });
+    $('btn-start').addEventListener('click', function () { showView('input'); });
+    $('btn-how').addEventListener('click', function () {
+      document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' });
+    });
+    $('btn-extract').addEventListener('click', runExtraction);
+    $('btn-analyze').addEventListener('click', runAnalysis);
+
+    document.querySelectorAll('[data-sample]').forEach(function (btn) {
+      btn.addEventListener('click', function () { loadSample(btn.getAttribute('data-sample')); });
+    });
+    document.querySelectorAll('[data-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = $(btn.getAttribute('data-toggle'));
+        target.hidden = !target.hidden;
+        btn.textContent = btn.getAttribute(target.hidden ? 'data-label-closed' : 'data-label-open') || btn.textContent;
+      });
+    });
+    document.querySelectorAll('.toggle-chip input').forEach(function (input) {
+      input.addEventListener('change', syncToggleChipStyles);
+    });
+
+    $('currency-select').addEventListener('change', updateRateSuffix);
+    updateRateSuffix();
+
+    $('btn-copy').addEventListener('click', function () {
+      var text = $('client-message').value;
+      var note = $('copy-note');
+      function flash() { note.classList.add('show'); setTimeout(function () { note.classList.remove('show'); }, 1600); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash).catch(function () {
+          $('client-message').select(); document.execCommand('copy'); flash();
+        });
+      } else {
+        $('client-message').select(); document.execCommand('copy'); flash();
+      }
+    });
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.querySelectorAll('#demo-track .seg').forEach(function (seg) {
+          seg.style.width = seg.getAttribute('data-target') + '%';
+        });
+      });
+    });
+
+    var draft = loadDraft();
+    if (draft && (draft.jobDesc || draft.price)) {
+      var panel = document.querySelector('#view-input');
+      var banner = document.createElement('div');
+      banner.className = 'restore-banner';
+      banner.innerHTML = '<span>You have a saved job from last time.</span>' +
+        '<span class="actions"><button id="restore-yes">Restore it</button><button id="restore-no">Start fresh</button></span>';
+      panel.insertBefore(banner, panel.children[1]);
+      banner.querySelector('#restore-yes').addEventListener('click', function () { applyDraftToForm(draft); banner.remove(); });
+      banner.querySelector('#restore-no').addEventListener('click', function () { clearDraft(); banner.remove(); });
+    }
+  });
+})();
+</script>
+</body>
+</html>
