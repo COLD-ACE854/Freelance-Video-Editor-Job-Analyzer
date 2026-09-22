@@ -775,7 +775,39 @@
       absoluteHoursCurve: [[0, 0], [4, 8], [8, 18], [15, 35], [25, 55], [40, 78], [60, 100]],
       deadlineWeight: 0.72,
       absoluteWeight: 0.28,
-      unknownDeadlineSeverity: 28      // no deadline given = mild uncertainty, not "safe"
+      // A missing deadline used to read as barely more than "safe" (28).
+      // Raised so it behaves like the real scheduling risk it is — a client
+      // who hasn't named a deadline yet can still turn around and ask for
+      // the job tomorrow — without being as severe as a deadline you know
+      // is tight (see deadlineRatioCurve above, which still tops out at 100).
+      unknownDeadlineSeverity: 42
+    },
+
+    /* ---- Scope uncertainty ---- [confidence: MED — see notes below] ----
+       Unknown scope must not be scored as if it were simple scope. This
+       block governs two things that both key off the same missing-field
+       checks: (1) the hour estimate below uses a non-trivial assumed
+       length/footage instead of defaulting to "shortest possible job" when
+       those fields are blank, and (2) computeRisk/computeScopeUncertainty
+       (engine file) turn the same missing fields into an uncertainty score
+       that both feeds the existing scope-clarity risk factor and gates the
+       final verdict, the same way the pay/schedule gates already do. */
+    scopeUncertainty: {
+      // Used only inside the hour math below, never shown as "the length is
+      // X minutes" anywhere — the UI still reports the length as unknown.
+      assumedMinutesWhenUnknown: 8,          // a plausible mid-range single video, not "under 5 min"
+      assumedFootagePerFinalMinute: 6,       // moderate shoot ratio, used only when footage is blank
+      // Display-only range width to show in the workload panel, i.e. how
+      // much the total-hours figure could plausibly move given what's
+      // actually unknown. Does not change the number the engine scores.
+      rangeWidthPerUnknown: 0.16,
+      rangeWidthCap: 0.5,
+      // How much each missing critical field contributes to a 0-100
+      // "how much of the scope is actually unknown" score. "features" only
+      // counts when it co-occurs with another unknown (see engine) — a
+      // fully-specified job with genuinely no extras is a real simple job,
+      // not a vague one.
+      weights: { length: 30, footage: 20, deadline: 20, features: 30 }
     },
 
     /* ---- Final score ---- [confidence: MED on structure, LOW on exact weights] ---- */
@@ -802,14 +834,21 @@
       { id: 'pay-marginal',   cap: 84, label: 'Pay only just covers your rate' },
       { id: 'schedule-break', cap: 54, label: 'Schedule does not fit the work' },
       { id: 'risk-stack',     cap: 64, label: 'Several risk factors stack up' },
-      { id: 'no-rate',        cap: 64, label: 'No target rate set' }
+      { id: 'no-rate',        cap: 64, label: 'No target rate set' },
+      { id: 'scope-uncertain',      cap: 84, label: 'Key scope details are missing' },
+      { id: 'scope-very-uncertain', cap: 64, label: 'Most of the scope is unknown' }
     ],
     gateThresholds: {
       paySevereBelowRatio: 0.55,
       payBelowRatio: 0.80,
       payMarginalRatio: 1.00,
       scheduleBreakDeadlineRatio: 1.45,
-      riskStackScore: 68
+      riskStackScore: 68,
+      // On the 0-100 scope-uncertainty score above: two missing critical
+      // fields (e.g. length + deadline, 30+20=50) already crosses the
+      // moderate line; three or more (e.g. + footage, 70) crosses severe.
+      scopeUncertainModerate: 45,
+      scopeUncertainSevere: 65
     },
 
     /* ---- Hard rejects: automatic failure regardless of other axes ---- */
@@ -1456,8 +1495,25 @@
     var job = rawJob.totalDeliverables != null ? rawJob : normalizeJob(rawJob);
     var cfg = CALIBRATION.workload;
     var f = cfg.editing.features;
+    var uc = CALIBRATION.scopeUncertainty;
     var totalDeliverables = job.totalDeliverables;
     var why = [];
+
+    // Unknown length/footage used to fall straight through as 0, which the
+    // hour formulas below then read as "a 5-minute video with nothing to
+    // review" — the shortest job the model can describe. That is an
+    // assumption of simplicity, not a way of expressing "we don't know".
+    // These stand-ins are used ONLY inside this function's arithmetic; the
+    // job's own finalMinutes/footageHours stay 0 everywhere else (display,
+    // complexity axis, confidence), so the UI keeps reporting them as
+    // unknown rather than as "8 minutes" or "an hour of footage".
+    var lengthUnknown = job.longformCount > 0 && job.finalMinutes <= 0;
+    var footageUnknown = job.footageHours <= 0;
+    var effectiveMinutes = lengthUnknown ? uc.assumedMinutesWhenUnknown : job.finalMinutes;
+    var effectiveFootageHours = job.footageHours;
+    if (footageUnknown && (job.longformCount > 0 || job.shortsCount > 0)) {
+      effectiveFootageHours = (effectiveMinutes * uc.assumedFootagePerFinalMinute) / 60;
+    }
 
     /* --- Editing --- */
     var projectSetup = totalDeliverables > 0 ? cfg.editing.projectBaseHours : 0;
@@ -1468,17 +1524,21 @@
     var batched = Math.max(0, job.longformCount - 2);
     var unbatched = job.longformCount - batched;
     var longFormEditing = (unbatched + batched * cfg.editing.longFormBatchDiscount) * cfg.editing.longFormBaseHours;
-    var extraMinutes = Math.max(0, job.finalMinutes - 5);
+    var extraMinutes = Math.max(0, effectiveMinutes - 5);
     var longFormLength = job.longformCount * extraMinutes * cfg.editing.perExtraMinute;
     if (job.longformCount > 0) {
       why.push(job.longformCount + ' long-form video(s) \u00d7 ' + cfg.editing.longFormBaseHours + 'h base cut' +
         (batched > 0 ? ' (with a batch discount from the 3rd onward)' : '') +
-        (extraMinutes > 0 ? ' + ' + round1(longFormLength) + 'h for ' + round1(job.finalMinutes) + '-minute length beyond a 5-min base' : '') +
+        (extraMinutes > 0 ? ' + ' + round1(longFormLength) + 'h for ' + (lengthUnknown ? '(unstated, modeled as ' + uc.assumedMinutesWhenUnknown + ') ' : round1(job.finalMinutes) + '-') + 'minute length beyond a 5-min base' : '') +
         ' \u2192 ' + round1(longFormEditing + longFormLength) + 'h');
     }
 
-    var footageReview = job.footageHours * cfg.editing.footageReviewPerHour;
-    if (job.footageHours > 0) why.push(round1(job.footageHours) + 'h of raw footage reviewed once, not per deliverable \u2192 ' + round1(footageReview) + 'h');
+    var footageReview = effectiveFootageHours * cfg.editing.footageReviewPerHour;
+    if (job.footageHours > 0) {
+      why.push(round1(job.footageHours) + 'h of raw footage reviewed once, not per deliverable \u2192 ' + round1(footageReview) + 'h');
+    } else if (footageUnknown && effectiveFootageHours > 0) {
+      why.push('Raw footage length wasn\u2019t stated \u2014 modeled as ' + round1(effectiveFootageHours) + 'h (' + uc.assumedFootagePerFinalMinute + ' min of footage per final minute) so this isn\u2019t scored as if there were nothing to review \u2192 ' + round1(footageReview) + 'h');
+    }
 
     var shortsEditing = 0;
     if (job.shortsCount > 0) {
@@ -1490,7 +1550,7 @@
     // Feature work scales with runtime — captioning a 45-min doc is not the
     // same job as captioning a 5-min video.
     var ls = cfg.editing.featureLengthScale;
-    var lengthFactor = clamp(1 + Math.max(0, job.finalMinutes - ls.perMinuteOver) * ls.factorPerMinute, 1, ls.maxFactor);
+    var lengthFactor = clamp(1 + Math.max(0, effectiveMinutes - ls.perMinuteOver) * ls.factorPerMinute, 1, ls.maxFactor);
     var featureEditing = 0;
     Object.keys(f).forEach(function (key) {
       if (!job[key]) return;
@@ -1525,7 +1585,7 @@
     if (isTight) why.push('tight turnaround (under ' + cfg.communication.tightDeadlineThresholdHours + 'h) adds extra back-and-forth \u2192 ' + cfg.communication.tightDeadlineBonus + 'h');
 
     /* --- Hidden work --- */
-    var hiddenCore = job.footageHours * cfg.hidden.footageOrganizingPerHour
+    var hiddenCore = effectiveFootageHours * cfg.hidden.footageOrganizingPerHour
       + cfg.hidden.exportBase
       + totalDeliverables * cfg.hidden.exportPerDeliverable
       + cfg.hidden.feedbackBuffer
@@ -1537,6 +1597,18 @@
     var totalHours = editingHours + revisionHours + communicationHours + hiddenHours;
     var unpaidShare = totalHours > 0 ? (communicationHours + hiddenHours) / totalHours : 0;
 
+    // Missing length/footage don't just shift the point estimate — they
+    // widen how much that estimate could be off by. This is display-only:
+    // it adds one line to the existing workload explanation and does not
+    // change totalHours itself or anything downstream that scores off it.
+    var unknownCount = (lengthUnknown ? 1 : 0) + (footageUnknown ? 1 : 0);
+    if (unknownCount > 0) {
+      var width = Math.min(uc.rangeWidthCap, unknownCount * uc.rangeWidthPerUnknown);
+      var lowHours = round1(totalHours * (1 - width));
+      var highHours = round1(totalHours * (1 + width));
+      why.push('Length and/or footage weren\u2019t stated, so treat ' + round1(totalHours) + 'h as a midpoint, not a precise figure \u2014 realistically somewhere between ' + lowHours + 'h and ' + highHours + 'h.');
+    }
+
     return {
       editingHours: editingHours,
       revisionHours: revisionHours,
@@ -1546,6 +1618,8 @@
       totalDeliverables: totalDeliverables,
       deadlineHoursTotal: job.deadlineHoursTotal,
       unpaidShare: unpaidShare,
+      lengthUnknown: lengthUnknown,
+      footageUnknown: footageUnknown,
       why: why
     };
   }
@@ -1662,6 +1736,16 @@
     if (job.sourceFiles) issues.push('source-file handoff is expected');
     if (job.footageHours > 0 && job.finalMinutes > 0 && (job.footageHours * 60) / job.finalMinutes > 25) issues.push('a very large amount of footage for the final length');
     if (job.deadlineValue <= 0) issues.push('no deadline was stated');
+    // Missing length/footage/feature scope used to have no representation
+    // in risk at all — a blank field simply read as "nothing to worry
+    // about". These three lines are what actually drives the new
+    // scope-uncertainty gates below (see computeScopeUncertainty).
+    if (workload.lengthUnknown) issues.push('the video\u2019s length was never stated');
+    if (workload.footageUnknown) issues.push('the raw footage length was never stated');
+    var noFeaturesStated = !(job.captions || job.basicGraphics || job.advancedGraphics || job.colorGrading || job.soundCleanup || job.broll || job.music || job.sourceFiles);
+    if (noFeaturesStated && (workload.lengthUnknown || workload.footageUnknown || job.deadlineValue <= 0)) {
+      issues.push('no editing requirements (captions, graphics, color, audio) were specified at all');
+    }
     return issues;
   }
 
@@ -1793,10 +1877,41 @@
   }
 
   /* ========================================================================
+     SCOPE UNCERTAINTY — how much of the job is actually unknown, as
+     opposed to known-and-simple. Feeds two new gates below, the same way
+     the pay and schedule gates already cap a verdict that looks good on
+     paper but is missing something disqualifying. A gate here can only
+     lower the score, never raise it — a fully-specified simple job scores
+     0 on this and is completely unaffected.
+     ==================================================================== */
+  function computeScopeUncertainty(job, workload) {
+    var w = CALIBRATION.scopeUncertainty.weights;
+    var lengthUnknown = workload.lengthUnknown;
+    var footageUnknown = workload.footageUnknown;
+    var deadlineUnknown = job.deadlineValue <= 0;
+    var noFeaturesStated = !(job.captions || job.basicGraphics || job.advancedGraphics || job.colorGrading || job.soundCleanup || job.broll || job.music || job.sourceFiles);
+    // Only counts as an unknown when nothing else pins the scope down
+    // either — a fully-specified job with genuinely no extras is real,
+    // simple scope, not a vague brief.
+    var featuresUnknown = noFeaturesStated && (lengthUnknown || footageUnknown || deadlineUnknown);
+
+    var score = (lengthUnknown ? w.length : 0) + (footageUnknown ? w.footage : 0) +
+      (deadlineUnknown ? w.deadline : 0) + (featuresUnknown ? w.features : 0);
+
+    return {
+      score: clamp(score, 0, 100),
+      lengthUnknown: lengthUnknown,
+      footageUnknown: footageUnknown,
+      deadlineUnknown: deadlineUnknown,
+      featuresUnknown: featuresUnknown
+    };
+  }
+
+  /* ========================================================================
      GATES — ceilings. A gate never raises a score, it only stops one strong
      axis from masking a disqualifying weakness in another.
      ==================================================================== */
-  function applyGates(rawScore, job, fin, risk, pressure) {
+  function applyGates(rawScore, job, fin, risk, pressure, scopeUncertainty) {
     var t = CALIBRATION.gateThresholds;
     var ratio = fin.profitabilityRatio;
     var applied = [];
@@ -1817,6 +1932,8 @@
     gate('pay-marginal', ratio != null && ratio < t.payMarginalRatio);
     gate('schedule-break', pressure.deadlineRatio != null && pressure.deadlineRatio >= t.scheduleBreakDeadlineRatio);
     gate('risk-stack', risk.score >= t.riskStackScore);
+    gate('scope-very-uncertain', scopeUncertainty.score >= t.scopeUncertainSevere);
+    gate('scope-uncertain', scopeUncertainty.score >= t.scopeUncertainModerate);
 
     return { score: score, applied: applied };
   }
@@ -1929,7 +2046,8 @@
       w.complexity * (100 - scores.complexity), 0, 100);
 
     var hardRejects = checkHardRejects(job, workload, fin, risk, pressure);
-    var gates = applyGates(rawScore, job, fin, risk, pressure);
+    var scopeUncertainty = computeScopeUncertainty(job, workload);
+    var gates = applyGates(rawScore, job, fin, risk, pressure, scopeUncertainty);
     var finalScore = hardRejects.length ? Math.min(gates.score, 20) : gates.score;
     var band = hardRejects.length
       ? { min: 0, verdict: 'Reject', level: 'high' }
@@ -1945,6 +2063,7 @@
       pressure: pressure,
       complexity: complexity,
       risk: risk,
+      scopeUncertainty: scopeUncertainty,
       scores: scores,
       rawScore: rawScore,
       finalScore: finalScore,
