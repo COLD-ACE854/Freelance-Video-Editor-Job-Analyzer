@@ -2463,5 +2463,91 @@
      ==================================================================== */
   function selfTest() {
     var reference = {
-      currency: 'USD'
-Preview truncated for large file
+      currency: 'USD', targetRate: 30, price: 300,
+      longformCount: 1, finalMinutes: 10, shortsCount: 3, footageHours: 3,
+      approversCount: 1, deadlineValue: 48, deadlineUnit: 'hours', revisionRounds: 1.5,
+      captions: true, basicGraphics: true, broll: true, music: true
+    };
+    var r = evaluateJob(reference);
+    console.log('%cJob Analyzer v' + CALIBRATION.version + ' self-test', 'font-weight:bold');
+    console.log('reference job \u2192 ' + round1(r.workload.totalHours) + 'h, ' + fmtRate(r.fin.effectiveRate, 'USD') +
+      ', score ' + r.score + ' \u2192 ' + r.verdict);
+    console.log('axes:', r.scores);
+    return r;
+  }
+
+  /* ========================================================================
+     EVENT WIRING
+     ==================================================================== */
+  document.addEventListener('DOMContentLoaded', function () {
+    window.__jobAnalyzer = {
+      CALIBRATION: CALIBRATION,
+      evaluateJob: evaluateJob,
+      parseJobDescription: parseJobDescription,
+      selfTest: selfTest
+    };
+
+    document.querySelectorAll('[data-nav]').forEach(function (btn) {
+      btn.addEventListener('click', function () { showView(btn.getAttribute('data-nav')); });
+    });
+    $('btn-start').addEventListener('click', function () { showView('input'); });
+    $('btn-how').addEventListener('click', function () {
+      document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' });
+    });
+    $('btn-extract').addEventListener('click', runExtraction);
+    $('btn-analyze').addEventListener('click', runAnalysis);
+
+    document.querySelectorAll('[data-sample]').forEach(function (btn) {
+      btn.addEventListener('click', function () { loadSample(btn.getAttribute('data-sample')); });
+    });
+    document.querySelectorAll('[data-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = $(btn.getAttribute('data-toggle'));
+        target.hidden = !target.hidden;
+        btn.textContent = btn.getAttribute(target.hidden ? 'data-label-closed' : 'data-label-open') || btn.textContent;
+      });
+    });
+    document.querySelectorAll('.toggle-chip input').forEach(function (input) {
+      input.addEventListener('change', syncToggleChipStyles);
+    });
+
+    $('currency-select').addEventListener('change', updateRateSuffix);
+    updateRateSuffix();
+
+    $('btn-copy').addEventListener('click', function () {
+      var text = $('client-message').value;
+      var note = $('copy-note');
+      function flash() { note.classList.add('show'); setTimeout(function () { note.classList.remove('show'); }, 1600); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash).catch(function () {
+          $('client-message').select(); document.execCommand('copy'); flash();
+        });
+      } else {
+        $('client-message').select(); document.execCommand('copy'); flash();
+      }
+    });
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        document.querySelectorAll('#demo-track .seg').forEach(function (seg) {
+          seg.style.width = seg.getAttribute('data-target') + '%';
+        });
+      });
+    });
+
+    var draft = loadDraft();
+    if (draft && (draft.jobDesc || draft.price)) {
+      var panel = document.querySelector('#view-input');
+      var banner = document.createElement('div');
+      banner.className = 'restore-banner';
+      banner.innerHTML = '<span>You have a saved job from last time.</span>' +
+        '<span class="actions"><button id="restore-yes">Restore it</button><button id="restore-no">Start fresh</button></span>';
+      panel.insertBefore(banner, panel.children[1]);
+      banner.querySelector('#restore-yes').addEventListener('click', function () { applyDraftToForm(draft); banner.remove(); });
+      banner.querySelector('#restore-no').addEventListener('click', function () { clearDraft(); banner.remove(); });
+    }
+  });
+})();
+</script>
+</body>
+</html>
