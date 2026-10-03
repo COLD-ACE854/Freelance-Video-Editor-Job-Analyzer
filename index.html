@@ -4,6 +4,44 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Video Job Analyzer</title>
+<!-- ===== ANALYTICS: GA4 loader + safe helper (set your Measurement ID below) ===== -->
+<script>
+(function () {
+  var GA_ID = 'G-XXXXXXXXXX';            // <-- your GA4 Measurement ID
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { dataLayer.push(arguments); };
+
+  // Restore saved theme early (avoids a flash of the wrong theme)
+  try {
+    var t = localStorage.getItem('jobAnalyzerTheme');
+    if (t) document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+
+  // Exclude yourself: visit the site once with ?notrack
+  var off = false;
+  try {
+    if (/[?&]notrack\b/.test(location.search)) localStorage.setItem('ga_optout', '1');
+    off = localStorage.getItem('ga_optout') === '1';
+  } catch (e) {}
+
+  // Safe helper: never throws; no-ops if analytics is blocked or disabled
+  window.trackEvent = function (name, params) {
+    if (off) return;
+    try { gtag('event', name, params || {}); } catch (e) {}
+  };
+
+  if (off || GA_ID === 'G-XXXXXXXXXX') return;   // don't load until configured
+  gtag('js', new Date());
+  gtag('config', GA_ID);                          // sends page_view automatically
+
+  var s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+  s.onerror = function () {};                     // blocked by adblock? ignore
+  document.head.appendChild(s);
+})();
+</script>
+<!-- ===== /ANALYTICS ===== -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -371,7 +409,10 @@
 
 <div class="topbar">
   <div class="wordmark">Job Analyzer<span class="dot">.</span></div>
-  <div class="tag">for video editors</div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="tag">for video editors</div>
+    <button class="btn btn-ghost" id="btn-theme" aria-label="Toggle light/dark theme" title="Toggle theme" style="padding:4px 10px;">&#9680;</button>
+  </div>
 </div>
 
 <div class="shell">
@@ -584,6 +625,18 @@
       <div class="fin-card"><div class="fin-label">Estimated hours</div><div class="fin-value" id="fin-hours">—</div></div>
       <div class="fin-card"><div class="fin-label">Effective rate</div><div class="fin-value" id="fin-rate">—</div></div>
       <div class="fin-card highlight"><div class="fin-label">Minimum price for you</div><div class="fin-value" id="fin-min">—</div></div>
+    </section>
+
+    <section class="panel" id="pricing-breakdown-panel" hidden>
+      <h2>Pricing breakdown</h2>
+      <p class="panel-intro">"Client's offer" above is already the converted total \u2014 this just shows how that total was worked out.</p>
+      <div class="financial-grid">
+        <div class="fin-card"><div class="fin-label">Pricing model</div><div class="fin-value" id="pm-model">—</div></div>
+        <div class="fin-card"><div class="fin-label">Rate</div><div class="fin-value" id="pm-rate">—</div></div>
+        <div class="fin-card"><div class="fin-label">Deliverables</div><div class="fin-value" id="pm-deliverables">—</div></div>
+        <div class="fin-card highlight"><div class="fin-label">Hidden hourly rate</div><div class="fin-value" id="pm-hidden-rate">—</div></div>
+      </div>
+      <p class="panel-intro" id="pm-warning" hidden></p>
     </section>
 
     <section class="panel">
@@ -807,7 +860,7 @@
       // counts when it co-occurs with another unknown (see engine) — a
       // fully-specified job with genuinely no extras is a real simple job,
       // not a vague one.
-      weights: { length: 30, footage: 20, deadline: 20, features: 30 }
+      weights: { length: 30, footage: 20, deadline: 20, features: 30, deliverableCount: 25 }
     },
 
     /* ---- Final score ---- [confidence: MED on structure, LOW on exact weights] ---- */
@@ -1104,36 +1157,67 @@
     var value = best.value;
     var evidence = best.evidence;
 
-    // A recurring-period qualifier ("$800/month", "$800 per month", "monthly
-    // budget: $800") attaches to the price wherever it sits in the sentence,
-    // not just right after the number, so this checks a window on both
-    // sides of the match rather than only what follows it.
-    var periodWindow = text.slice(Math.max(0, best.start - 26), Math.min(text.length, best.end + 26));
-    var periodMatch = /\/\s*(month|week|day)\b|\bper\s+(month|week|day)\b|\b(month|week|dai)ly\b/i.exec(periodWindow);
+    // ---- Pricing-model classification -----------------------------------
+    // Everything below looks at the SAME locality window used for the old
+    // monthly-budget check (a fixed span around this one price match, not
+    // the whole text — that locality is what stops an unrelated clause
+    // elsewhere in the description from reclassifying this price). The
+    // checks are mutually exclusive and ordered by specificity: an hourly
+    // or per-finished-minute rate is the most informative thing a client
+    // can say, a per-video/short/reel/episode rate is next, a bare "/month"
+    // cadence is the least specific, and a price with none of these
+    // qualifiers is a flat project price exactly as before.
+    var window = text.slice(Math.max(0, best.start - 26), Math.min(text.length, best.end + 26));
+    var afterText = text.slice(best.end, best.end + 24);
+    var pricingModel = 'PROJECT';
+    var unitWord = null;
+    var deliverableCountUnknown = false;
+
+    var hourlyMatch = /\/\s*(?:hrs?|h)\b|\bper\s+hour\b|\ban?\s+hour\b/i.exec(window);
+    var minuteMatch = !hourlyMatch && /\/\s*(?:fin(?:ished)?\s*)?min(?:ute)?\b|\bper\s+(?:finished\s+)?min(?:ute)?\b/i.exec(window);
+    var unitRe = /^[\s,]*(?:\/\s*|per\s+|each\s+)(?:youtube\s+)?(video|short|reel|episode|tiktok|clip|deliverable|edit)s?\b/i;
+    var unitMatch = !hourlyMatch && !minuteMatch && unitRe.exec(afterText);
+    var periodMatch = !hourlyMatch && !minuteMatch && !unitMatch &&
+      /\/\s*(month|week|day)\b|\bper\s+(month|week|day)\b|\b(month|week|dai)ly\b/i.exec(window);
     var period = periodMatch ? (periodMatch[1] || periodMatch[2] || (periodMatch[3] === 'dai' ? 'day' : periodMatch[3])).toLowerCase() : null;
 
-    if (!period) {
-      // "$100 per video" — multiply out a per-unit price, but only when the
-      // "per X" phrase is the thing immediately following THIS price match,
-      // not merely present somewhere else in the description. Matching the
-      // whole text was how an unrelated "per reel" turnaround clause could
-      // multiply a completely different budget figure.
-      var afterText = text.slice(best.end, best.end + 20);
-      var perUnit = /^[\s,]*per\s+(video|short|clip|reel|edit|deliverable)\b/i.exec(afterText);
-      if (perUnit && candidates.length === 1) {
-        var unitsWord = perUnit[1].toLowerCase();
-        var units = (unitsWord === 'video' || unitsWord === 'edit') ? Math.max(1, counts.longformCount || 1)
-          : (unitsWord === 'deliverable' ? Math.max(1, (counts.longformCount || 0) + (counts.shortsCount || 0))
-          : Math.max(1, counts.shortsCount || 1));
-        if (units > 1) {
-          value = value * units;
-          evidence = best.evidence + ' \u00d7 ' + units + ' (per-' + unitsWord + ' pricing)';
-        }
+    if (hourlyMatch) {
+      pricingModel = 'HOURLY';
+      evidence = best.evidence + '/hr (hourly rate \u2014 total depends on estimated hours)';
+    } else if (minuteMatch) {
+      pricingModel = 'PER_FINISHED_MINUTE';
+      evidence = best.evidence + ' per finished minute';
+      var pfmMinutes = counts.finalMinutes > 0 ? counts.finalMinutes : CALIBRATION.scopeUncertainty.assumedMinutesWhenUnknown;
+      var pfmVideos = Math.max(1, counts.longformCount || 1);
+      value = value * pfmMinutes * pfmVideos;
+      evidence += counts.finalMinutes > 0
+        ? ' \u00d7 ' + pfmMinutes + ' min' + (pfmVideos > 1 ? ' \u00d7 ' + pfmVideos + ' video(s)' : '')
+        : ' \u00d7 ~' + pfmMinutes + ' min (length unstated, modeled)';
+    } else if (unitMatch) {
+      pricingModel = 'PER_VIDEO';
+      unitWord = unitMatch[1].toLowerCase();
+      evidence = best.evidence + ' per ' + unitWord;
+      var isLongformUnit = (unitWord === 'video' || unitWord === 'episode' || unitWord === 'edit');
+      var countForUnit = isLongformUnit ? counts.longformCount
+        : (unitWord === 'deliverable' ? (counts.longformCount || 0) + (counts.shortsCount || 0) : counts.shortsCount);
+      if (countForUnit > 0) {
+        value = value * countForUnit;
+        evidence += ' \u00d7 ' + countForUnit + ' = ' + fmtCurrency(best.value * countForUnit, currencyCode);
+      } else {
+        deliverableCountUnknown = true;
+        evidence += ' (deliverable count not stated \u2014 shown as a single unit, not the full project)';
       }
-    } else {
+    } else if (period) {
+      pricingModel = period === 'month' ? 'RETAINER' : 'PROJECT';
       evidence = best.evidence + ' (' + period + 'ly budget \u2014 not multiplied by deliverable count)';
     }
-    return { value: value, evidence: evidence, recurring: !!period, period: period };
+
+    return {
+      value: value, evidence: evidence,
+      recurring: !!period, period: period,
+      pricingModel: pricingModel, ratePerUnit: best.value, unitWord: unitWord,
+      deliverableCountUnknown: deliverableCountUnknown
+    };
   }
 
   function parseJobDescription(text) {
@@ -1200,7 +1284,8 @@
     }
     if (found.longformCount == null) {
       m = new RegExp('(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s*(?:x\\s*)?' + longformUnit, 'i').exec(text) ||
-          /(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:youtube\s*)?videos?\b(?!\s*(?:per|a)\b)/i.exec(text);
+          /(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*(?:youtube\s*)?videos?\b(?!\s*(?:per|a)\b)/i.exec(text) ||
+          /(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s*episodes?\b(?!\s*(?:per|a)\b)/i.exec(text);
       if (m) {
         var lf = wordOrDigit(m[1]);
         if (!isNaN(lf) && lf > 0 && lf < 100) record('longformCount', lf, 'number of long-form videos', m[0].trim());
@@ -1313,13 +1398,34 @@
     }
 
     /* ---- price (needs counts, so it runs after them) ---- */
-    var priceResult = parsePrice(text, currency, { longformCount: found.longformCount, shortsCount: found.shortsCount });
+    var priceResult = parsePrice(text, currency, {
+      longformCount: found.longformCount, shortsCount: found.shortsCount, finalMinutes: found.finalMinutes
+    });
     if (priceResult) {
-      record('price', priceResult.value, 'client\u2019s offer', priceResult.evidence);
+      if (priceResult.pricingModel === 'HOURLY') {
+        // The real total isn't knowable until the workload estimate exists
+        // (Analyze time), so found.price is deliberately left unset here —
+        // writing a bare "$25" into the budget field would misrepresent an
+        // hourly rate as the whole project's pay. evaluateJob fills in the
+        // real total once it has computed estimated hours.
+        found.pricingModel = 'HOURLY';
+        found.ratePerUnit = priceResult.ratePerUnit;
+        fields.pricingModel = { value: 'HOURLY', evidence: priceResult.evidence };
+        labels.push('pricing model');
+      } else {
+        record('price', priceResult.value, 'client\u2019s offer', priceResult.evidence);
+      }
       // Informational only — the engine still just reads found.price as the
-      // total for this job. This flag is for the extraction summary, so a
-      // monthly figure is never silently misread as a per-video price.
+      // total for this job wherever that total is already known. These
+      // flags are for the extraction summary and the confidence/uncertainty
+      // panel, so a monthly or per-unit figure is never silently misread.
       if (priceResult.recurring) { found.priceIsRecurring = true; found.pricePeriod = priceResult.period; }
+      if (priceResult.pricingModel !== 'PROJECT') {
+        found.pricingModel = found.pricingModel || priceResult.pricingModel;
+        found.ratePerUnit = priceResult.ratePerUnit;
+      }
+      if (priceResult.unitWord) found.unitWord = priceResult.unitWord;
+      if (priceResult.deliverableCountUnknown) found.deliverableCountUnknown = true;
     }
 
     /* ---- feature toggles ---- */
@@ -1380,6 +1486,8 @@
     set('revisionRounds', flags.indexOf('unlimited-revisions') !== -1 ? 'inferred' : 'explicit');
     set('approversCount', flags.indexOf('approvers-assumed') !== -1 ? 'assumed' : 'explicit');
     FEATURE_KEYS.forEach(function (k) { if (found[k]) status[k] = 'explicit'; });
+    set('pricingModel', 'explicit');
+    set('ratePerUnit', 'explicit');
     return status;
   }
 
@@ -1481,7 +1589,17 @@
       soundCleanup: !!raw.soundCleanup,
       broll: !!raw.broll,
       music: !!raw.music,
-      sourceFiles: !!raw.sourceFiles
+      sourceFiles: !!raw.sourceFiles,
+      // Pricing-model metadata: only ever populated by extraction (never a
+      // visible form field), consumed once below in evaluateJob to convert
+      // an hourly rate into a total once the hour estimate exists, and by
+      // computeScopeUncertainty to flag a per-video rate with no known
+      // deliverable count. Everything else in the engine keeps using
+      // job.price exactly as before.
+      pricingModel: raw.pricingModel || 'PROJECT',
+      ratePerUnit: Math.max(0, num(raw.ratePerUnit, 0)),
+      unitWord: raw.unitWord || null,
+      deliverableCountUnknown: !!raw.deliverableCountUnknown
     };
     job.totalDeliverables = job.longformCount + job.shortsCount;
     job.deadlineHoursTotal = job.deadlineUnit === 'days' ? job.deadlineValue * 24 : job.deadlineValue;
@@ -1746,6 +1864,7 @@
     if (noFeaturesStated && (workload.lengthUnknown || workload.footageUnknown || job.deadlineValue <= 0)) {
       issues.push('no editing requirements (captions, graphics, color, audio) were specified at all');
     }
+    if (job.deliverableCountUnknown) issues.push('a per-' + (job.unitWord || 'unit') + ' rate was given with no stated count, so the total is only a guess at one unit');
     return issues;
   }
 
@@ -1894,16 +2013,23 @@
     // either — a fully-specified job with genuinely no extras is real,
     // simple scope, not a vague brief.
     var featuresUnknown = noFeaturesStated && (lengthUnknown || footageUnknown || deadlineUnknown);
+    // A per-video/short/reel rate with no known deliverable count: the
+    // parser deliberately didn't invent a count (see parsePrice), so
+    // job.price is only a single unit's rate, not the project total. That
+    // is exactly the kind of understatement this axis exists to flag.
+    var deliverableCountUnknown = !!job.deliverableCountUnknown;
 
     var score = (lengthUnknown ? w.length : 0) + (footageUnknown ? w.footage : 0) +
-      (deadlineUnknown ? w.deadline : 0) + (featuresUnknown ? w.features : 0);
+      (deadlineUnknown ? w.deadline : 0) + (featuresUnknown ? w.features : 0) +
+      (deliverableCountUnknown ? w.deliverableCount : 0);
 
     return {
       score: clamp(score, 0, 100),
       lengthUnknown: lengthUnknown,
       footageUnknown: footageUnknown,
       deadlineUnknown: deadlineUnknown,
-      featuresUnknown: featuresUnknown
+      featuresUnknown: featuresUnknown,
+      deliverableCountUnknown: deliverableCountUnknown
     };
   }
 
@@ -2025,6 +2151,9 @@
   function evaluateJob(rawJob) {
     var job = normalizeJob(rawJob);
     var workload = computeWorkload(job);
+    if (job.pricingModel === 'HOURLY' && job.ratePerUnit > 0) {
+      job.price = job.ratePerUnit * workload.totalHours;
+    }
     var fin = computeFinancials(job, workload);
     var pressure = computePressure(job, workload);
     var complexity = computeComplexity(job);
@@ -2221,6 +2350,7 @@
     document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
     $('view-' + name).classList.add('active');
     state.view = name;
+    trackEvent('view_changed', { view: name });
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
@@ -2247,7 +2377,11 @@
       deadlineValue: $('deadline-value').value,
       deadlineUnit: $('deadline-unit').value,
       revisionRounds: $('revision-rounds').value,
-      flags: (state.lastExtraction && state.lastExtraction.flags) || []
+      flags: (state.lastExtraction && state.lastExtraction.flags) || [],
+      pricingModel: (state.lastExtraction && state.lastExtraction.found.pricingModel) || 'PROJECT',
+      ratePerUnit: (state.lastExtraction && state.lastExtraction.found.ratePerUnit) || 0,
+      unitWord: (state.lastExtraction && state.lastExtraction.found.unitWord) || null,
+      deliverableCountUnknown: !!(state.lastExtraction && state.lastExtraction.found.deliverableCountUnknown)
     };
     Object.keys(FEATURE_INPUT_IDS).forEach(function (key) { job[key] = $(FEATURE_INPUT_IDS[key]).checked; });
     return job;
@@ -2466,6 +2600,8 @@
     setText('fin-rate', fmtRate(fin.effectiveRate, job.currency));
     setText('fin-min', job.targetRate > 0 ? fmtCurrency(fin.minimumPrice, job.currency) : 'set your rate');
 
+    renderPricingBreakdown(job, workload, fin);
+
     fillList('ask-list', buildAskList(job));
 
     // Risk grid — scored factors first, then the two displayed on other axes.
@@ -2504,6 +2640,42 @@
       li.textContent = line;
       el.appendChild(li);
     });
+  }
+
+  var PRICING_MODEL_LABEL = {
+    HOURLY: 'Hourly', PROJECT: 'Flat project', PER_VIDEO: 'Per unit',
+    PER_FINISHED_MINUTE: 'Per finished minute', RETAINER: 'Monthly retainer'
+  };
+
+  function renderPricingBreakdown(job, workload, fin) {
+    var panel = $('pricing-breakdown-panel');
+    if (job.pricingModel === 'PROJECT' && !job.deliverableCountUnknown) { panel.hidden = true; return; }
+    panel.hidden = false;
+
+    setText('pm-model', PRICING_MODEL_LABEL[job.pricingModel] || job.pricingModel);
+
+    var rateText = '—';
+    if (job.pricingModel === 'HOURLY') rateText = fmtRate(job.ratePerUnit, job.currency);
+    else if (job.pricingModel === 'PER_VIDEO') rateText = fmtCurrency(job.ratePerUnit, job.currency) + ' / ' + (job.unitWord || 'unit');
+    else if (job.pricingModel === 'PER_FINISHED_MINUTE') rateText = fmtCurrency(job.ratePerUnit, job.currency) + ' / finished min';
+    else if (job.pricingModel === 'RETAINER') rateText = fmtCurrency(job.ratePerUnit, job.currency) + ' / month';
+    setText('pm-rate', rateText);
+
+    var deliverableCount = (job.unitWord === 'short' || job.unitWord === 'reel' || job.unitWord === 'tiktok' || job.unitWord === 'clip')
+      ? job.shortsCount : job.longformCount;
+    setText('pm-deliverables', job.deliverableCountUnknown ? 'Not stated' : (deliverableCount > 0 ? String(deliverableCount) : '—'));
+
+    setText('pm-hidden-rate', fmtRate(fin.effectiveRate, job.currency));
+
+    var warningEl = $('pm-warning');
+    if (job.pricingModel === 'PER_VIDEO') {
+      warningEl.hidden = false;
+      warningEl.textContent = job.deliverableCountUnknown
+        ? 'Per-unit pricing detected, but no deliverable count was stated \u2014 this total only reflects a single unit, not the full project. Confidence has been lowered accordingly.'
+        : 'Per-video pricing detected. Per-video offers can hide low effective hourly rates. Evaluate based on estimated workload, not just revenue per video.';
+    } else {
+      warningEl.hidden = true;
+    }
   }
 
   function buildAskList(job) {
@@ -2561,11 +2733,32 @@
      MAIN ACTIONS
      ==================================================================== */
   function runAnalysis() {
-    var result = evaluateJob(readFields());
-    state.lastResult = result;
-    renderResults(result);
-    saveDraft(result.job);
-    showView('results');
+    trackEvent('analyze_clicked');
+    try {
+      var result = evaluateJob(readFields());
+      trackEvent('analysis_completed', { verdict: result.verdict });
+      state.lastResult = result;
+      renderResults(result);
+      saveDraft(result.job);
+      showView('results');
+
+      var slug = result.verdict.toLowerCase().replace(/\s+/g, '_');
+      trackEvent('result_generated', {
+        verdict: result.verdict,
+        score: result.score,
+        confidence: result.confidence.band,
+        currency: result.job.currency,
+        pricing_model: result.job.pricingModel
+      });
+      trackEvent('recommendation_generated', { recommendation: result.verdict });
+      trackEvent('rec_' + slug);   // rec_strong_accept, rec_accept, rec_negotiate, rec_high_risk, rec_reject
+    } catch (err) {
+      trackEvent('analysis_error', {
+        stage: 'analyze',
+        error_message: String((err && err.message) || err).slice(0, 100)
+      });
+      console.error(err);
+    }
   }
 
   function loadSample(key) {
@@ -2599,6 +2792,37 @@
      EVENT WIRING
      ==================================================================== */
   document.addEventListener('DOMContentLoaded', function () {
+    /* ---- analytics: global error reporting (capped at 5 per page load) ---- */
+    var errCount = 0;
+    function reportError(stage, msg) {
+      if (errCount++ < 5) trackEvent('app_error', { stage: stage, error_message: String(msg).slice(0, 100) });
+    }
+    window.addEventListener('error', function (e) { reportError('window', e.message); });
+    window.addEventListener('unhandledrejection', function (e) {
+      reportError('promise', (e.reason && e.reason.message) || e.reason);
+    });
+
+    /* ---- analytics: theme tracking (manual toggle + OS change) ---- */
+    var themeBtn = document.getElementById('btn-theme');
+    if (themeBtn) themeBtn.addEventListener('click', function () {
+      var root = document.documentElement;
+      var cur = root.getAttribute('data-theme') ||
+        ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light');
+      var next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('jobAnalyzerTheme', next); } catch (e) {}
+      trackEvent('theme_switched', { theme: next, source: 'toggle' });
+    });
+    if (window.matchMedia) {
+      var mq = matchMedia('(prefers-color-scheme: dark)');
+      var onScheme = function (e) {
+        if (!document.documentElement.getAttribute('data-theme'))
+          trackEvent('theme_switched', { theme: e.matches ? 'dark' : 'light', source: 'system' });
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onScheme);
+      else if (mq.addListener) mq.addListener(onScheme);
+    }
+
     window.__jobAnalyzer = {
       CALIBRATION: CALIBRATION,
       evaluateJob: evaluateJob,
@@ -2609,7 +2833,7 @@
     document.querySelectorAll('[data-nav]').forEach(function (btn) {
       btn.addEventListener('click', function () { showView(btn.getAttribute('data-nav')); });
     });
-    $('btn-start').addEventListener('click', function () { showView('input'); });
+    $('btn-start').addEventListener('click', function () { trackEvent('cta_start_clicked'); showView('input'); });
     $('btn-how').addEventListener('click', function () {
       document.getElementById('how-it-works').scrollIntoView({ behavior: 'smooth' });
     });
